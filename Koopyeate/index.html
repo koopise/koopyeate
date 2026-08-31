@@ -2,9 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<title>Koopyeate Whiteboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Koopyeate</title>
 <link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body>
 
@@ -14,77 +18,106 @@
   <button class="app-tab" data-view="doc-view">Doc</button>
   <button class="app-tab" data-view="slides-view">Slides</button>
   <button class="app-tab" data-view="photobooth-view">Photobooth</button>
-  <button id="layers-btn" title="Layers">Layers</button>
-  <button id="history-btn" title="Versions / Trash">Versions</button>
-  <button id="settings-btn" title="Keybinds">⌨️</button>
+  <button class="app-tab" data-view="library-view">Library</button>
+  <button id="layers-btn" title="Layers panel">📚</button>
+  <button id="library-btn" title="Library mini popup">📁</button>
+  <button id="history-btn" title="History & trash">🕓</button>
+  <button id="settings-btn" title="Keybind settings">⌨️</button>
 </div>
 
-<!-- ============ BOARD VIEW ============ -->
-<div id="board-view" class="app-view active">
+<div id="layers-panel">
+  <h3>Layers</h3>
+  <div id="layers-list"></div>
+</div>
+
+<div id="library-mini-panel">
+  <div id="library-mini-header">
+    <span>Library</span>
+    <button id="library-mini-close">✕</button>
+  </div>
+  <input type="text" id="library-mini-search" placeholder="Search library...">
+  <div id="library-mini-grid"></div>
+</div>
+
+<div id="history-panel">
+  <div id="history-tabs">
+    <button class="active" data-htab="versions">Versions</button>
+    <button data-htab="trash">Trash</button>
+  </div>
+  <div id="history-list"></div>
+  <div id="trash-list" style="display:none;"></div>
+</div>
+
+<div class="app-view active" id="board-view">
   <div id="toolbar">
+    <button class="tool-btn active" id="tool-select" data-action="select" title="Select / Move (drag empty space to pan, Shift+drag to box-select)">🖱️</button>
+
     <div class="tool-group">
-      <button class="group-toggle" id="grp-draw-toggle">🖱️<span class="caret">▾</span></button>
+      <button class="group-toggle" id="grp-draw-toggle" title="Drawing tools">✏️<span class="caret">▾</span></button>
       <div class="group-flyout" id="grp-draw-flyout">
-        <button class="tool-btn active" id="tool-select" data-action="select" title="Select / Move">🖱️</button>
         <button class="tool-btn" id="tool-pen" data-action="pen" title="Pen">✏️</button>
-        <button class="tool-btn" id="tool-eraser" data-action="eraser" title="Eraser">🧹</button>
-        <input type="color" id="penColor" value="#222222">
-        <input type="range" id="penSize" min="1" max="20" value="3">
+        <button class="tool-btn" id="tool-eraser" data-action="eraser" title="Eraser">🧽</button>
+        <input type="color" id="penColor" value="#222222" title="Pen color">
+        <input type="range" id="penSize" min="1" max="30" value="3" title="Pen size">
       </div>
     </div>
 
     <div class="tool-group">
-      <button class="group-toggle" id="grp-content-toggle">✏️<span class="caret">▾</span></button>
+      <button class="group-toggle" id="grp-content-toggle" title="Add content">🗒️<span class="caret">▾</span></button>
       <div class="group-flyout" id="grp-content-flyout">
-        <button class="tool-btn" id="tool-sticky" data-action="sticky" title="Sticky note">🗒️</button>
-        <button class="tool-btn" id="tool-image" data-action="image" title="Add image">🖼️</button>
-        <button class="tool-btn" id="tool-table" data-action="table" title="Add table">🔢</button>
+        <button class="tool-btn" id="tool-sticky" data-action="sticky" title="Sticky Note">🗒️</button>
+        <button class="tool-btn" id="tool-image" data-action="image" title="Add Image">🖼️</button>
         <button class="tool-btn" id="tool-camera" data-action="camera" title="Open Photobooth tab">📷</button>
+        <button class="tool-btn" id="tool-table" data-action="table" title="Add Table (choose size)">🔢</button>
       </div>
     </div>
 
     <div class="tool-group">
-      <button class="group-toggle" id="grp-flow-toggle">🗒️<span class="caret">▾</span></button>
+      <button class="group-toggle" id="grp-flow-toggle" title="Flowchart & mind map">▭<span class="caret">▾</span></button>
       <div class="group-flyout" id="grp-flow-flyout">
-        <button class="tool-btn" id="tool-rect" data-action="rect" title="Flowchart rectangle">▭</button>
-        <button class="tool-btn" id="tool-diamond" data-action="diamond" title="Flowchart diamond">◆</button>
-        <button class="tool-btn" id="tool-circle" data-action="circle" title="Flowchart circle">⬤</button>
+        <button class="tool-btn" id="tool-rect" data-action="rect" title="Rectangle">▭</button>
+        <button class="tool-btn" id="tool-diamond" data-action="diamond" title="Diamond">◆</button>
+        <button class="tool-btn" id="tool-circle" data-action="circle" title="Circle">⬤</button>
         <button class="tool-btn" id="tool-connector" data-action="connector" title="Connector arrow">↗️</button>
-        <button class="tool-btn" id="tool-mindmap" data-action="mindmap" title="Mind map node">🧠</button>
+        <button class="tool-btn" id="tool-mindmap" data-action="mindmap" title="Mind Map node">🧠</button>
       </div>
     </div>
 
     <div class="sep"></div>
-    <select id="board-size-select" class="board-size-select">
+    <select class="board-size-select" id="board-size-select" title="Sheet size to place">
       <option value="presentation">Presentation 16:9</option>
       <option value="a4-portrait">A4 Portrait</option>
       <option value="a4-landscape">A4 Landscape</option>
       <option value="square">Square 1:1</option>
       <option value="custom">Custom size…</option>
     </select>
-    <button id="btn-place-sheet">➕ Place sheet</button>
+    <button id="btn-place-sheet" title="Place a movable sheet of this size on the canvas">➕ Place sheet</button>
     <div class="sep"></div>
 
     <div class="tool-group">
-      <button class="group-toggle" id="grp-actions-toggle">↩️<span class="caret">▾</span></button>
+      <button class="group-toggle" id="grp-actions-toggle" title="Undo / clear / duplicate">↩️<span class="caret">▾</span></button>
       <div class="group-flyout" id="grp-actions-flyout">
-        <button class="tool-btn" data-action="undo" title="Undo">↩️</button>
-        <button class="tool-btn" data-action="duplicate" title="Duplicate selected">⧉</button>
-        <button class="tool-btn" data-action="clear" title="Clear board">🗑️</button>
+        <button class="tool-btn" id="btn-undo" data-action="undo" title="Undo">↩️</button>
+        <button class="tool-btn" id="btn-duplicate" data-action="duplicate" title="Duplicate selected (Ctrl+D)">📋</button>
+        <button class="tool-btn" id="btn-clear" data-action="clear" title="Clear board">🗑️</button>
       </div>
     </div>
 
     <div class="tool-group">
-      <button class="group-toggle" id="grp-file-toggle">↗️<span class="caret">▾</span></button>
+      <button class="group-toggle" id="grp-file-toggle" title="Save / load / export">💾<span class="caret">▾</span></button>
       <div class="group-flyout" id="grp-file-flyout">
-        <button class="tool-btn label-btn" data-action="save" title="Export .json">JSON</button>
-        <button class="tool-btn label-btn" data-action="load" title="Import .json">Import</button>
-        <button class="tool-btn label-btn" data-action="png" title="Export PNG">PNG</button>
-        <button class="tool-btn label-btn" data-action="pdf" title="Export PDF">PDF</button>
-        <button class="tool-btn label-btn" data-action="pptx" title="Export PPTX">PPTX</button>
+        <button class="tool-btn label-btn" id="btn-save" data-action="save" title="Export board (.json)"><b>JSON</b></button>
+        <button class="tool-btn label-btn" id="btn-load" data-action="load" title="Import board (.json)"><b>Import</b></button>
+        <button class="tool-btn label-btn" id="btn-png" data-action="png" title="Export as PNG"><b>PNG</b></button>
+        <button class="tool-btn label-btn" id="btn-pdf" data-action="pdf" title="Export as PDF"><b>PDF</b></button>
+        <button class="tool-btn label-btn" id="btn-pptx" data-action="pptx" title="Export as PowerPoint"><b>PPTX</b></button>
+        <button class="tool-btn label-btn" id="btn-save-library" data-action="savelib" title="Save to Library"><b>+Lib</b></button>
       </div>
     </div>
   </div>
+
+  <input type="file" id="fileInput" accept=".json">
+  <input type="file" id="imageInput" accept="image/*">
 
   <div id="board-wrap">
     <div id="canvas-layer">
@@ -108,126 +141,91 @@
     <input type="number" id="timer-custom" placeholder="min" style="display:none;">
     <button id="timer-start">▶️</button>
     <button id="timer-pause">⏸️</button>
-    <button id="timer-reset">⟲</button>
+    <button id="timer-reset">🔁</button>
     <button id="timer-mode">⏱️ Stopwatch</button>
   </div>
-
-  <input type="file" id="fileInput" accept="application/json">
-  <input type="file" id="imageInput" accept="image/*">
-
-  <!-- Table context menu -->
-  <div id="table-ctx-menu" class="ctx-menu">
-    <button data-tact="addRow">➕ Add row</button>
-    <button data-tact="delRow">➖ Delete row</button>
-    <button data-tact="addCol">➕ Add column</button>
-    <button data-tact="delCol">➖ Delete column</button>
-    <div class="ctx-sep"></div>
-    <button data-tact="duplicate">⧉ Duplicate table</button>
-    <button data-tact="delete">🗑️ Delete table</button>
-  </div>
 </div>
 
-<!-- ============ DOC VIEW ============ -->
-<div id="doc-view" class="app-view">
-  <div id="doc-tabs-bar">
-    <div id="doc-tabs-list"></div>
-    <button id="doc-tab-add" title="New tab">➕</button>
-  </div>
+<div class="app-view" id="doc-view">
   <div id="doc-toolbar">
-    <button data-cmd="bold" title="Bold"><b>B</b></button>
-    <button data-cmd="italic" title="Italic"><i>I</i></button>
-    <button data-cmd="underline" title="Underline"><u>U</u></button>
-    <button data-block="h1" title="Heading 1">H1</button>
-    <button data-block="h2" title="Heading 2">H2</button>
-    <button data-cmd="insertUnorderedList" title="Bullet list">• List</button>
-    <button data-cmd="insertOrderedList" title="Numbered list">1. List</button>
-    <button id="doc-undo" title="Undo (this doc tab)">↩️</button>
-    <div class="sep"></div>
-    <button id="doc-download" title="Export .txt">TXT</button>
-    <button id="doc-download-pdf" title="Export .pdf">PDF</button>
-    <button id="doc-download-docx" title="Export .docx">DOCX</button>
+    <button data-cmd="bold"><b>B</b></button>
+    <button data-cmd="italic"><i>I</i></button>
+    <button data-cmd="underline"><u>U</u></button>
+    <button data-block="h1">H1</button>
+    <button data-block="h2">H2</button>
+    <button data-block="p">¶</button>
+    <button data-cmd="insertUnorderedList">• List</button>
+    <button data-cmd="insertOrderedList">1. List</button>
+    <button id="doc-download"><b>TXT</b></button>
+    <button id="doc-download-pdf"><b>PDF</b></button>
+    <button id="doc-download-docx"><b>DOCX</b></button>
+    <button id="doc-save-library"><b>+Lib</b></button>
   </div>
   <div id="doc-paper">
-    <div id="doc-editable" contenteditable="true" data-placeholder="Start typing here…"></div>
+    <div id="doc-editable" contenteditable="true">
+      <h1>Untitled document</h1>
+      <p>Start typing here…</p>
+    </div>
   </div>
 </div>
 
-<!-- ============ SLIDES VIEW ============ -->
-<div id="slides-view" class="app-view">
+<div class="app-view" id="slides-view">
   <div id="slides-editor-bar">
-    <button id="slide-add-text" title="Add text">🔤 Text</button>
+    <button id="slide-add-text" title="Add text box">🔤 Text</button>
     <button id="slide-add-image" title="Add image">🖼️ Image</button>
     <button id="slide-new" title="New slide">➕ Slide</button>
-    <button id="slide-del" title="Delete slide">🗑️ Delete</button>
-    <button id="slide-undo" title="Undo (this deck)">↩️</button>
-    <div class="sep"></div>
-    <button id="slide-export-pdf" title="Export PDF">PDF</button>
-    <button id="slide-export-pptx" title="Export PPTX">PPTX</button>
+    <button id="slide-del" title="Delete this slide">🗑️ Delete</button>
+    <button id="slide-export-pdf" title="Export all slides as PDF"><b>PDF</b></button>
+    <button id="slide-export-pptx" title="Export all slides as PowerPoint"><b>PPTX</b></button>
+    <button id="slide-save-library"><b>+Lib</b></button>
   </div>
   <button id="present-btn">▶️ Present</button>
-  <input type="file" id="slideImageInput" accept="image/*">
-
   <div id="slide-canvas-wrap">
     <div id="slide-stage"></div>
   </div>
   <div id="slide-thumbs"></div>
+  <input type="file" id="slideImageInput" accept="image/*" style="display:none;">
+</div>
 
-  <div id="present-overlay">
-    <button id="present-close">✕ Close</button>
-    <div id="present-stage"></div>
-    <div id="present-nav">
-      <button id="present-prev">‹</button>
-      <span id="present-count">1 / 1</span>
-      <button id="present-next">›</button>
-    </div>
+<div id="present-overlay">
+  <button id="present-close">✕ Close</button>
+  <div id="present-stage"></div>
+  <div id="present-nav">
+    <button id="present-prev">◀</button>
+    <span id="present-count">1 / 1</span>
+    <button id="present-next">▶</button>
   </div>
 </div>
 
-<!-- ============ PHOTOBOOTH VIEW ============ -->
-<div id="photobooth-view" class="app-view">
+<div class="app-view" id="photobooth-view">
   <div id="pb-layout">
     <div id="pb-camera-col">
       <div style="position:relative;">
         <video id="pb-video" autoplay playsinline></video>
-        <div id="pb-flash" style="position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;border-radius:10px;"></div>
-        <div id="pb-countdown"></div>
+        <div id="pb-countdown">3</div>
       </div>
-      <canvas id="pb-canvas"></canvas>
-      <canvas id="pb-strip-canvas"></canvas>
-
+      <div id="pb-shots-preview"></div>
       <div id="pb-controls">
         <select id="pb-shot-count">
           <option value="1">1 shot</option>
-          <option value="3" selected>3-shot strip</option>
-          <option value="4">4-shot strip</option>
+          <option value="3">3-shot strip</option>
+          <option value="4" selected>4-shot strip</option>
           <option value="6">6 shots (pick 4)</option>
           <option value="8">8 shots (pick 4)</option>
-          <option value="custom">Custom…</option>
         </select>
-        <input type="number" id="pb-shot-count-custom" min="1" max="24" value="5" style="display:none;width:60px;" title="Custom number of shots">
-        <label style="display:flex;align-items:center;gap:4px;color:#ccc;font-size:12px;">
-          Interval
-          <input type="number" id="pb-interval" min="1" max="15" value="3" step="1" style="width:50px;">s
-        </label>
-        <button id="pb-undo" title="Undo (photobooth)">↩️</button>
         <button id="pb-start">📸 Start</button>
         <button id="pb-retake">🔄 Retake all</button>
       </div>
-
-      <div id="pb-pick-hint" style="display:none;color:#ccc;font-size:12px;text-align:center;">Click photos below to select which ones go in your strip (in click order).</div>
+      <div id="pb-pick-hint" style="display:none;color:#ffd166;font-size:12px;text-align:center;max-width:400px;">Click photos below to select which ones go in your strip (in click order).</div>
       <div id="pb-picker-grid"></div>
-
-      <div id="pb-shots-preview"></div>
     </div>
-
     <div id="pb-strip-col">
       <div id="pb-strip-preview" class="frame-classic">
-        <div id="pb-strip-photos"></div>
+        <div id="pb-strip-photos" class="layout-vertical"></div>
         <div id="pb-strip-caption">koopyeate booth</div>
       </div>
-      <div style="color:#888;font-size:11px;">Drag thumbnails below to reorder</div>
+      <div id="pb-reorder-hint" style="font-size:11px;color:#999;">Drag thumbnails below to reorder</div>
       <div id="pb-reorder-strip"></div>
-
       <div id="pb-option-row">
         <label>Layout
           <select id="pb-layout-select">
@@ -236,7 +234,6 @@
             <option value="grid2x2">2×2 Grid</option>
             <option value="big3">1 Big + 3 Small</option>
             <option value="big4">1 Big + 4 Small</option>
-            <option value="custom">Custom size…</option>
           </select>
         </label>
         <label>Frame
@@ -255,7 +252,7 @@
         <label>Filter
           <select id="pb-filter-select">
             <option value="none">None</option>
-            <option value="bw">Black &amp; White</option>
+            <option value="bw">Black & White</option>
             <option value="sepia">Sepia</option>
             <option value="vintage">Vintage</option>
             <option value="bright">Bright</option>
@@ -263,62 +260,78 @@
         </label>
         <label>Font
           <select id="pb-font-select">
-            <option value="sans-serif">Sans</option>
-            <option value="serif">Serif</option>
-            <option value="monospace">Mono</option>
-            <option value="cursive">Script</option>
-            <option value="'Comic Sans MS',cursive">Playful</option>
-            <option value="Impact">Bold Impact</option>
+            <option value="'Segoe UI', sans-serif">Sans</option>
+            <option value="Georgia, serif">Serif</option>
+            <option value="'Courier New', monospace">Mono</option>
+            <option value="'Brush Script MT', cursive">Script</option>
+            <option value="'Comic Sans MS', cursive">Playful</option>
+            <option value="Impact, sans-serif">Bold Impact</option>
           </select>
         </label>
         <label>Caption
-          <input type="text" id="pb-caption-input" value="koopyeate booth">
+          <input type="text" id="pb-caption-input" value="koopyeate booth" style="width:120px;padding:5px;border-radius:6px;border:none;">
         </label>
       </div>
-
-      <!-- Custom frame size panel -->
-      <div id="pb-custom-size-panel" style="display:none;">
-        <div style="color:#ccc;font-size:12px;margin-bottom:6px;">Custom frame size</div>
-        <div class="pb-custom-row">
-          <label>Width (px)<input type="number" id="pb-custom-w" min="100" max="4000" value="800"></label>
-          <label>Height (px)<input type="number" id="pb-custom-h" min="100" max="4000" value="1200"></label>
-        </div>
-        <div class="pb-custom-row">
-          <label>Columns<input type="number" id="pb-custom-cols" min="1" max="10" value="2"></label>
-          <label>Gap (px)<input type="number" id="pb-custom-gap" min="0" max="60" value="10"></label>
-        </div>
-      </div>
-
       <div class="pb-swatch-row" id="pb-swatch-row"></div>
-      <input type="color" id="pb-frame-color" value="#ffffff" title="Custom color">
-
-      <div style="display:flex;gap:8px;">
-        <button id="pb-add-to-board">Add to Board</button>
-        <button id="pb-download-strip">PNG</button>
+      <div id="pb-option-row">
+        <label>Custom color
+          <input type="color" id="pb-frame-color" value="#ffffff">
+        </label>
+      </div>
+      <div id="pb-controls">
+        <button id="pb-add-to-board"><b>Add to Board</b></button>
+        <button id="pb-download-strip"><b>PNG</b></button>
+        <button id="pb-save-library"><b>+Lib</b></button>
       </div>
     </div>
   </div>
+  <canvas id="pb-canvas"></canvas>
+  <canvas id="pb-strip-canvas"></canvas>
+  <div id="pb-flash"></div>
 </div>
 
-<!-- ============ TABLE SIZE PROMPT ============ -->
+<div class="app-view" id="library-view">
+  <div id="library-toolbar">
+    <input type="text" id="library-search" placeholder="Search library...">
+    <select id="library-cat-select">
+      <option value="all">All categories</option>
+      <option value="board">Board</option>
+      <option value="photobooth">Photobooth</option>
+      <option value="slides">Slides</option>
+      <option value="doc">Doc</option>
+      <option value="link">Link</option>
+      <option value="file">File</option>
+    </select>
+    <button id="library-new-folder">➕ New Folder</button>
+    <button id="library-add-link">🔗 Add Link</button>
+  </div>
+  <div id="library-dropzone">Drag & drop files here, or paste (Ctrl/Cmd+V) images and links while this tab is open</div>
+  <div id="library-folders"></div>
+  <div id="library-grid"></div>
+  <div id="library-empty" style="display:none;">No items yet. Drop a file, paste a link, or save something from Board/Doc/Slides/Photobooth.</div>
+</div>
+
+<div id="library-link-overlay">
+  <div id="library-link-box">
+    <h3>Add a link</h3>
+    <input type="text" id="library-link-url" placeholder="https://...">
+    <input type="text" id="library-link-title" placeholder="Title (optional)">
+    <select id="library-link-folder"></select>
+    <button id="library-link-save">Save link</button>
+  </div>
+</div>
+
 <div id="table-prompt-overlay">
   <div id="table-prompt">
     <h3>New table size</h3>
     <div class="row">
-      <div>
-        <label>Rows</label>
-        <input type="number" id="table-rows-input" value="3" min="1" max="30">
-      </div>
-      <div>
-        <label>Columns</label>
-        <input type="number" id="table-cols-input" value="3" min="1" max="20">
-      </div>
+      <div><label>Rows</label><input type="number" id="table-rows-input" value="3" min="1" max="30"></div>
+      <div><label>Columns</label><input type="number" id="table-cols-input" value="3" min="1" max="20"></div>
     </div>
     <button id="table-prompt-create">Create table</button>
   </div>
 </div>
 
-<!-- ============ SETTINGS / KEYBINDS ============ -->
 <div id="settings-overlay">
   <div id="settings-panel">
     <h2>Keybind settings</h2>
@@ -329,26 +342,6 @@
   </div>
 </div>
 
-<!-- ============ LAYERS PANEL ============ -->
-<div id="layers-panel">
-  <h3>Layers</h3>
-  <div id="layers-list"></div>
-</div>
-
-<!-- ============ HISTORY / TRASH PANEL ============ -->
-<div id="history-panel">
-  <div id="history-tabs">
-    <button data-htab="versions" class="active">Versions</button>
-    <button data-htab="trash">Trash</button>
-  </div>
-  <div id="history-list"></div>
-  <div id="trash-list" style="display:none;"></div>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
