@@ -1,0 +1,1954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Koopyeate Whiteboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<style>
+  :root{ --bg:#f4f4f2; --panel:#ffffff; --border:#e0e0dc; --accent:#5b6cff; --text:#222; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);}
+
+  #app-tabs{position:fixed;top:0;left:0;width:100%;height:42px;background:#1e1e24;display:flex;align-items:center;padding:0 10px;z-index:2000;gap:4px;}
+  .app-tab{color:#aaa;background:transparent;border:none;padding:8px 14px;border-radius:8px 8px 0 0;cursor:pointer;font-size:13px;font-weight:600;}
+  .app-tab.active{color:#fff;background:#2d2d36;}
+  .app-tab:hover{color:#fff;}
+  #app-title{color:#fff;font-weight:700;font-size:14px;margin-right:14px;padding-left:4px;}
+  #settings-btn{margin-left:auto;color:#aaa;background:transparent;border:none;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:15px;}
+  #settings-btn:hover{color:#fff;background:#2d2d36;}
+
+  .app-view{position:absolute;top:42px;left:0;width:100%;height:calc(100% - 42px);display:none;overflow:auto;}
+  .app-view.active{display:block;}
+
+  #board-wrap{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;cursor:grab;background:var(--bg);}
+  #board-wrap.panning{cursor:grabbing;}
+  #canvas-layer{position:absolute;top:0;left:0;transform-origin:0 0;}
+  #draw-canvas{position:absolute;top:0;left:0;pointer-events:none;}
+  .item{position:absolute;box-sizing:border-box;user-select:none;}
+  .item.selected{outline:2px solid var(--accent);z-index:50;}
+  .item.multi-selected{outline:2px dashed var(--accent);z-index:49;}
+
+  .board-sheet{background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.08), 0 8px 30px rgba(0,0,0,.1);cursor:move;z-index:1;}
+  .board-sheet .sheet-label{position:absolute;top:-24px;left:0;font-size:11px;color:#999;font-weight:600;}
+
+  .sticky{background:#fff8b0;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.15);padding:10px;font-size:14px;line-height:1.35;white-space:pre-wrap;overflow:auto;cursor:move;}
+  .sticky[contenteditable="true"]{cursor:text;}
+  .img-item{cursor:move;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.2);}
+  .img-item img{width:100%;height:100%;display:block;border-radius:4px;object-fit:contain;background:#fff;}
+  .resize-handle{position:absolute;width:14px;height:14px;background:var(--accent);border:2px solid #fff;border-radius:50%;right:-7px;bottom:-7px;cursor:nwse-resize;display:none;z-index:70;}
+  .item.selected .resize-handle{display:block;}
+  .del-handle{position:absolute;width:18px;height:18px;background:#ff5c5c;border:2px solid #fff;border-radius:50%;left:-9px;top:-9px;cursor:pointer;display:none;color:#fff;font-size:12px;line-height:14px;text-align:center;z-index:60;}
+  .item.selected .del-handle{display:block;}
+  .dup-handle{position:absolute;width:18px;height:18px;background:#3ecf8e;border:2px solid #fff;border-radius:50%;left:16px;top:-9px;cursor:pointer;display:none;color:#fff;font-size:11px;line-height:14px;text-align:center;z-index:60;}
+  .item.selected .dup-handle{display:block;}
+
+  .table-item{background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.15);overflow:auto;cursor:move;}
+  .table-item table{border-collapse:collapse;width:100%;height:100%;}
+  .table-item td{border:1px solid #ddd;padding:6px 8px;font-size:13px;min-width:60px;}
+  .table-item td[contenteditable="true"]:focus{outline:2px solid var(--accent);}
+  .table-toolbar{position:absolute;top:-30px;left:38px;display:none;gap:4px;}
+  .item.selected .table-toolbar{display:flex;}
+  .table-toolbar button{font-size:11px;padding:3px 6px;border:1px solid var(--border);background:#fff;border-radius:5px;cursor:pointer;}
+
+  .flow-node{cursor:move;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;padding:10px;font-size:13px;text-align:center;border:2px solid #444;}
+  .flow-node[contenteditable="true"]{cursor:text;}
+  .flow-node.shape-rect{border-radius:8px;background:#e8f0ff;}
+  .flow-node.shape-diamond{background:#ffe8d6;transform-origin:center;}
+  .flow-node.shape-circle{border-radius:50%;background:#e0ffe4;}
+  .flow-node.shape-mindnode{background:#fff0f6;border-radius:20px;border-color:#d46bb0;}
+  .flow-anchor{position:absolute;width:10px;height:10px;background:var(--accent);border:2px solid #fff;border-radius:50%;cursor:crosshair;display:none;}
+  .item.selected .flow-anchor{display:block;}
+  .anchor-t{top:-6px;left:50%;transform:translateX(-50%);}
+  .anchor-b{bottom:-6px;left:50%;transform:translateX(-50%);}
+  .anchor-l{left:-6px;top:50%;transform:translateY(-50%);}
+  .anchor-r{right:-6px;top:50%;transform:translateY(-50%);}
+
+  #selection-box{position:absolute;border:1.5px dashed var(--accent);background:rgba(91,108,255,.08);pointer-events:none;display:none;z-index:900;}
+
+  #toolbar{position:fixed;top:52px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 10px;display:flex;gap:4px;align-items:center;box-shadow:0 4px 16px rgba(0,0,0,.08);z-index:1000;flex-wrap:wrap;max-width:92vw;}
+  .tool-btn{border:none;background:transparent;border-radius:8px;padding:8px 10px;cursor:pointer;font-size:16px;display:flex;align-items:center;gap:6px;color:var(--text);position:relative;}
+  .tool-btn.label-btn{font-size:12px;white-space:nowrap;}
+  .tool-btn:hover{background:#f0f0f0;}
+  .tool-btn.active{background:var(--accent);color:#fff;}
+  .sep{width:1px;height:24px;background:var(--border);margin:0 4px;}
+  input[type=color]{width:28px;height:28px;border:none;border-radius:6px;padding:0;cursor:pointer;background:none;}
+  #penSize{width:60px;}
+
+  .tool-group{position:relative;display:flex;align-items:center;}
+  .group-toggle{border:none;background:transparent;border-radius:8px;padding:8px 6px;cursor:pointer;font-size:16px;display:flex;align-items:center;gap:2px;color:var(--text);}
+  .group-toggle:hover{background:#f0f0f0;}
+  .group-toggle .caret{font-size:9px;transition:transform .2s;}
+  .group-toggle.expanded .caret{transform:rotate(180deg);}
+  .group-flyout{display:none;position:absolute;top:110%;left:0;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:6px;box-shadow:0 6px 20px rgba(0,0,0,.12);gap:4px;z-index:1100;flex-wrap:wrap;width:max-content;}
+  .group-flyout.open{display:flex;}
+
+  .board-size-select{font-size:12px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer;}
+  #btn-place-sheet{font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer;font-weight:600;}
+  #btn-place-sheet:hover{background:#f0f0f0;}
+
+  #hint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.72);color:#fff;font-size:12px;padding:6px 12px;border-radius:8px;z-index:1000;pointer-events:none;transition:opacity .3s;}
+  #zoomLabel{position:fixed;bottom:14px;right:14px;background:var(--panel);border:1px solid var(--border);padding:5px 10px;border-radius:8px;font-size:12px;z-index:1000;}
+  #fileInput{display:none;}
+
+  #timer-widget{position:fixed;bottom:14px;left:14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px 12px;z-index:1000;box-shadow:0 4px 16px rgba(0,0,0,.08);font-size:13px;display:flex;align-items:center;gap:8px;}
+  #timer-display{font-weight:700;font-size:16px;min-width:64px;text-align:center;font-family:monospace;}
+  #timer-widget button, #timer-widget select, #timer-widget input{font-size:12px;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:pointer;}
+  #timer-widget input[type=number]{width:48px;}
+
+  #doc-view{background:var(--bg);overflow:auto;padding:40px 0;}
+  #doc-paper{max-width:760px;margin:0 auto;background:#fff;min-height:900px;box-shadow:0 4px 20px rgba(0,0,0,.08);border-radius:8px;padding:60px;}
+  #doc-toolbar{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;gap:6px;z-index:10;justify-content:center;}
+  #doc-toolbar button{border:1px solid var(--border);background:#fff;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;}
+  #doc-toolbar button:hover{background:#f0f0f0;}
+  #doc-editable{outline:none;font-size:15px;line-height:1.7;min-height:700px;}
+  #doc-editable h1{font-size:28px;} #doc-editable h2{font-size:22px;}
+
+  #slides-view{background:#111;}
+  #slides-editor-bar{position:fixed;top:52px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 10px;display:flex;gap:6px;z-index:1000;box-shadow:0 4px 16px rgba(0,0,0,.08);}
+  #slides-editor-bar button{border:none;background:transparent;border-radius:8px;padding:8px 10px;cursor:pointer;font-size:14px;}
+  #slides-editor-bar button:hover{background:#f0f0f0;}
+  #slide-canvas-wrap{position:absolute;top:100px;left:0;width:100%;height:calc(100% - 160px);display:flex;align-items:center;justify-content:center;}
+  #slide-stage{width:900px;height:506px;background:#fff;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5);position:relative;overflow:hidden;}
+  .slide-el{position:absolute;cursor:move;}
+  .slide-el[contenteditable="true"]{cursor:text;outline:2px dashed var(--accent);}
+  .slide-el img{width:100%;height:100%;object-fit:contain;}
+  #slide-thumbs{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:1000;}
+  .slide-thumb{width:80px;height:45px;background:#fff;border:2px solid var(--border);border-radius:4px;cursor:pointer;font-size:9px;display:flex;align-items:center;justify-content:center;color:#888;}
+  .slide-thumb.active{border-color:var(--accent);}
+  #present-btn{position:fixed;top:52px;right:14px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:13px;font-weight:600;z-index:1000;}
+  #present-overlay{position:fixed;inset:0;background:#000;z-index:5000;display:none;align-items:center;justify-content:center;}
+  #present-overlay.active{display:flex;}
+  #present-stage{width:90vw;max-width:1400px;aspect-ratio:900/506;background:#fff;position:relative;overflow:hidden;border-radius:4px;}
+  #present-close{position:fixed;top:16px;right:16px;color:#fff;background:rgba(255,255,255,.15);border:none;border-radius:8px;padding:10px 14px;cursor:pointer;z-index:5001;}
+  #present-nav{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);color:#fff;background:rgba(255,255,255,.15);border-radius:10px;padding:8px 16px;display:flex;gap:14px;z-index:5001;}
+  #present-nav button{background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;}
+
+  /* Photobooth v4 — full tab, grid layouts */
+  #photobooth-view{background:#15151b;overflow:auto;padding:30px 0;}
+  #pb-layout{display:flex;gap:24px;max-width:1400px;margin:0 auto;flex-wrap:wrap;justify-content:center;padding:0 20px;}
+  #pb-camera-col{display:flex;flex-direction:column;align-items:center;gap:12px;}
+  #pb-video{width:480px;max-width:90vw;border-radius:10px;transform:scaleX(-1);background:#000;}
+  #pb-canvas, #pb-strip-canvas{display:none;}
+  #pb-controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+  #pb-controls button, #pb-controls select{padding:9px 16px;border-radius:8px;border:none;font-size:13px;cursor:pointer;background:var(--accent);color:#fff;font-weight:600;}
+  #pb-controls select{background:#fff;color:#222;border:1px solid var(--border);}
+  #pb-countdown{position:absolute;top:0;left:0;width:100%;height:100%;display:none;align-items:center;justify-content:center;font-size:80px;font-weight:800;color:#fff;text-shadow:0 4px 20px rgba(0,0,0,.6);}
+  #pb-shots-preview{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:480px;}
+  .pb-shot-thumb{width:64px;height:48px;border-radius:6px;object-fit:cover;border:2px solid #444;}
+
+  #pb-picker-grid{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:480px;}
+  .pb-pick-thumb{position:relative;width:80px;height:60px;border-radius:6px;overflow:hidden;cursor:pointer;border:3px solid #444;}
+  .pb-pick-thumb img{width:100%;height:100%;object-fit:cover;}
+  .pb-pick-thumb.picked{border-color:#3ecf8e;}
+  .pb-pick-thumb .pick-order{position:absolute;top:2px;left:2px;background:#3ecf8e;color:#fff;font-size:10px;font-weight:700;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;}
+
+  #pb-strip-col{display:flex;flex-direction:column;align-items:center;gap:10px;background:#1c1c22;border-radius:12px;padding:18px;min-width:320px;}
+  #pb-strip-preview{background:#fff;padding:14px;border-radius:6px;display:flex;flex-direction:column;gap:8px;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.4);}
+  #pb-strip-preview.frame-film{background:#111;}
+  #pb-strip-preview.frame-neon{background:#0a0a16;box-shadow:0 0 20px #5b6cff, 0 10px 30px rgba(0,0,0,.4);}
+  #pb-strip-preview.frame-polaroid{background:#fff;padding:14px 14px 40px 14px;}
+  #pb-strip-preview.frame-hearts{background:#fff0f6;border:4px dotted #d46bb0;}
+  #pb-strip-preview.frame-scallop{background:#fff;border-radius:16px;box-shadow:0 0 0 6px #fff, 0 0 0 8px #eee, 0 10px 30px rgba(0,0,0,.4);}
+  #pb-strip-preview.frame-stripes{background:repeating-linear-gradient(45deg,#fff,#fff 10px,#ffe3ec 10px,#ffe3ec 20px);}
+  #pb-strip-preview.frame-gold{background:linear-gradient(135deg,#f7e7ce,#d4af37);}
+  #pb-strip-preview.frame-grid{background:#fff;background-image:linear-gradient(#eee 1px,transparent 1px),linear-gradient(90deg,#eee 1px,transparent 1px);background-size:12px 12px;}
+  .pb-strip-photo{object-fit:cover;border-radius:4px;filter:none;}
+  #pb-strip-photos{display:flex;flex-direction:column;gap:8px;width:220px;}
+  #pb-strip-photos .pb-strip-photo{width:220px;height:165px;}
+  #pb-strip-photos.layout-horizontal{flex-direction:row;width:auto;}
+  #pb-strip-photos.layout-horizontal .pb-strip-photo{width:140px;height:165px;}
+  #pb-strip-photos.layout-grid2x2{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:300px;}
+  #pb-strip-photos.layout-grid2x2 .pb-strip-photo{width:100%;height:110px;}
+  #pb-strip-photos.layout-big3{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:8px;width:320px;height:260px;overflow:hidden;}
+  #pb-strip-photos.layout-big3 .pb-strip-photo{width:100%;height:100%;min-width:0;min-height:0;object-fit:cover;}
+  #pb-strip-photos.layout-big3 .pb-strip-photo:nth-child(1){grid-row:1 / 3;grid-column:1;}
+  #pb-strip-photos.layout-big3 .pb-strip-photo:nth-child(2){grid-column:2;grid-row:1;}
+  #pb-strip-photos.layout-big3 .pb-strip-photo:nth-child(3){grid-column:2;grid-row:2;}
+  #pb-strip-photos.layout-big4{display:grid;grid-template-columns:2fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;width:360px;height:260px;overflow:hidden;}
+  #pb-strip-photos.layout-big4 .pb-strip-photo{width:100%;height:100%;min-width:0;min-height:0;object-fit:cover;}
+  #pb-strip-photos.layout-big4 .pb-strip-photo:nth-child(1){grid-row:1 / 3;grid-column:1;}
+  #pb-strip-photos.layout-big4 .pb-strip-photo:nth-child(2){grid-column:2;grid-row:1;}
+  #pb-strip-photos.layout-big4 .pb-strip-photo:nth-child(3){grid-column:3;grid-row:1;}
+  #pb-strip-photos.layout-big4 .pb-strip-photo:nth-child(4){grid-column:2 / 4;grid-row:2;}
+  #pb-strip-caption{margin-top:2px;}
+  #pb-option-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+  #pb-option-row label{font-size:11px;color:#ccc;display:flex;flex-direction:column;align-items:center;gap:4px;}
+  #pb-option-row select, #pb-option-row input[type=color]{padding:5px;border-radius:6px;border:none;font-size:12px;}
+
+  .pb-swatch-row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;}
+  .pb-swatch{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid #444;}
+  .pb-swatch.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);}
+
+  #pb-reorder-strip{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:280px;}
+  .pb-reorder-thumb{width:56px;height:42px;border-radius:6px;object-fit:cover;cursor:grab;border:2px solid #555;}
+  .pb-reorder-thumb.dragging{opacity:0.4;}
+  .pb-strip-photo{cursor:grab;}
+  .pb-strip-photo:active{cursor:grabbing;}
+
+  #settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:6000;display:none;align-items:center;justify-content:center;}
+  #settings-overlay.active{display:flex;}
+  #settings-panel{background:#fff;border-radius:12px;padding:24px;width:420px;max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+  #settings-panel h2{margin:0 0 4px;font-size:17px;}
+  #settings-panel p{margin:0 0 16px;font-size:12px;color:#777;}
+  .keybind-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;}
+  .keybind-row input{width:90px;text-align:center;padding:6px;border:1px solid var(--border);border-radius:6px;font-family:monospace;text-transform:uppercase;cursor:pointer;background:#fafafa;}
+  .keybind-row input.listening{border-color:var(--accent);background:#eef0ff;}
+  #settings-close{margin-top:16px;width:100%;padding:10px;border:none;background:var(--accent);color:#fff;border-radius:8px;cursor:pointer;font-weight:600;}
+  #settings-reset{margin-top:8px;width:100%;padding:8px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:12px;}
+
+  #table-prompt-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:6000;display:none;align-items:center;justify-content:center;}
+  #table-prompt-overlay.active{display:flex;}
+  #table-prompt{background:#fff;border-radius:12px;padding:22px;width:280px;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+  #table-prompt h3{margin:0 0 14px;font-size:15px;}
+  #table-prompt label{font-size:12px;color:#666;display:block;margin-bottom:4px;}
+  #table-prompt input{width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;margin-bottom:12px;font-size:14px;}
+  #table-prompt .row{display:flex;gap:10px;}
+  #table-prompt .row>div{flex:1;}
+  #table-prompt button{width:100%;padding:9px;border:none;background:var(--accent);color:#fff;border-radius:8px;cursor:pointer;font-weight:600;}
+  
+  #layers-btn{margin-left:6px;color:#aaa;background:transparent;border:none;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:15px;}
+  #layers-btn:hover{color:#fff;background:#2d2d36;}
+  #layers-panel{position:fixed;top:52px;right:14px;width:240px;max-height:70vh;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:1000;display:none;flex-direction:column;overflow:hidden;}
+  #layers-panel.open{display:flex;}
+  #layers-panel h3{margin:0;padding:10px 14px;font-size:13px;border-bottom:1px solid var(--border);}
+  #layers-list{overflow-y:auto;flex:1;}
+  .layer-row{display:flex;align-items:center;gap:6px;padding:6px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid #f5f5f5;}
+  .layer-row:hover{background:#f7f7f7;}
+  .layer-row.active{background:#eef0ff;}
+  .layer-row .layer-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .layer-row button{border:none;background:transparent;cursor:pointer;font-size:12px;padding:2px;}
+  .layer-row.dragging{opacity:0.4;}
+
+    #history-btn{margin-left:6px;color:#aaa;background:transparent;border:none;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:15px;}
+  #history-btn:hover{color:#fff;background:#2d2d36;}
+  #history-panel{position:fixed;top:52px;right:264px;width:260px;max-height:70vh;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:1000;display:none;flex-direction:column;overflow:hidden;}
+  #history-panel.open{display:flex;}
+  #history-tabs{display:flex;border-bottom:1px solid var(--border);}
+  #history-tabs button{flex:1;border:none;background:transparent;padding:8px;font-size:12px;cursor:pointer;font-weight:600;color:#888;}
+  #history-tabs button.active{color:var(--accent);border-bottom:2px solid var(--accent);}
+  #history-list, #trash-list{overflow-y:auto;flex:1;}
+  .history-row, .trash-row{padding:8px 12px;font-size:12px;border-bottom:1px solid #f5f5f5;cursor:pointer;display:flex;justify-content:space-between;align-items:center;}
+  .history-row:hover, .trash-row:hover{background:#f7f7f7;}
+  .trash-row button{border:none;background:var(--accent);color:#fff;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<div id="app-tabs">
+  <span id="app-title">🗂️ Koopyeate</span>
+  <button class="app-tab active" data-view="board-view">Board</button>
+  <button class="app-tab" data-view="doc-view">Doc</button>
+  <button class="app-tab" data-view="slides-view">Slides</button>
+  <button class="app-tab" data-view="photobooth-view">Photobooth</button>
+  <button id="layers-btn" title="Layers panel">Layers</button>
+  <button id="settings-btn" title="Keybind settings">⚙️</button>
+</div>
+
+<div class="app-view active" id="board-view">
+  <div id="toolbar">
+    <button class="tool-btn active" id="tool-select" data-action="select" title="Select / Move (drag empty space to pan, Shift+drag to box-select)">🖱️</button>
+
+    <div class="tool-group">
+      <button class="group-toggle" id="grp-draw-toggle" title="Drawing tools">✏️<span class="caret">▾</span></button>
+      <div class="group-flyout" id="grp-draw-flyout">
+        <button class="tool-btn" id="tool-pen" data-action="pen" title="Pen">✏️</button>
+        <button class="tool-btn" id="tool-eraser" data-action="eraser" title="Eraser">🧽</button>
+        <input type="color" id="penColor" value="#222222" title="Pen color">
+        <input type="range" id="penSize" min="1" max="30" value="3" title="Pen size">
+      </div>
+    </div>
+
+    <div class="tool-group">
+      <button class="group-toggle" id="grp-content-toggle" title="Add content">🗒️<span class="caret">▾</span></button>
+      <div class="group-flyout" id="grp-content-flyout">
+        <button class="tool-btn" id="tool-sticky" data-action="sticky" title="Sticky Note">🗒️</button>
+        <button class="tool-btn" id="tool-image" data-action="image" title="Add Image">🖼️</button>
+        <button class="tool-btn" id="tool-camera" data-action="camera" title="Open Photobooth tab">📷</button>
+        <button class="tool-btn" id="tool-table" data-action="table" title="Add Table (choose size)">🔢</button>
+      </div>
+    </div>
+
+    <div class="tool-group">
+      <button class="group-toggle" id="grp-flow-toggle" title="Flowchart & mind map">▭<span class="caret">▾</span></button>
+      <div class="group-flyout" id="grp-flow-flyout">
+        <button class="tool-btn" id="tool-rect" data-action="rect" title="Rectangle">▭</button>
+        <button class="tool-btn" id="tool-diamond" data-action="diamond" title="Diamond">◆</button>
+        <button class="tool-btn" id="tool-circle" data-action="circle" title="Circle">⬤</button>
+        <button class="tool-btn" id="tool-connector" data-action="connector" title="Connector arrow">↗️</button>
+        <button class="tool-btn" id="tool-mindmap" data-action="mindmap" title="Mind Map node">🧠</button>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+    <select class="board-size-select" id="board-size-select" title="Sheet size to place">
+      <option value="presentation">Presentation 16:9</option>
+      <option value="a4-portrait">A4 Portrait</option>
+      <option value="a4-landscape">A4 Landscape</option>
+      <option value="square">Square 1:1</option>
+      <option value="custom">Custom size…</option>
+    </select>
+    <button id="btn-place-sheet" title="Place a movable sheet of this size on the canvas">➕ Place sheet</button>
+    <div class="sep"></div>
+
+    <div class="tool-group">
+      <button class="group-toggle" id="grp-actions-toggle" title="Undo / clear / duplicate">↩️<span class="caret">▾</span></button>
+      <div class="group-flyout" id="grp-actions-flyout">
+        <button class="tool-btn" id="btn-undo" data-action="undo" title="Undo">↩️</button>
+        <button class="tool-btn" id="btn-duplicate" data-action="duplicate" title="Duplicate selected (Ctrl+D)">📋</button>
+        <button class="tool-btn" id="btn-clear" data-action="clear" title="Clear board">🗑️</button>
+      </div>
+    </div>
+
+    <div class="tool-group">
+      <button class="group-toggle" id="grp-file-toggle" title="Save / load / export">💾<span class="caret">▾</span></button>
+      <div class="group-flyout" id="grp-file-flyout">
+        <button class="tool-btn label-btn" id="btn-save" data-action="save" title="Export board (.json)"><b>JSON</b></button>
+        <button class="tool-btn label-btn" id="btn-load" data-action="load" title="Import board (.json)"><b>Import</b></button>
+        <button class="tool-btn label-btn" id="btn-png" data-action="png" title="Export as PNG"><b>PNG</b></button>
+        <button class="tool-btn label-btn" id="btn-pdf" data-action="pdf" title="Export as PDF"><b>PDF</b></button>
+        <button class="tool-btn label-btn" id="btn-pptx" data-action="pptx" title="Export as PowerPoint"><b>PPTX</b></button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept=".json">
+  <input type="file" id="imageInput" accept="image/*">
+
+  <div id="board-wrap">
+    <div id="canvas-layer">
+      <canvas id="draw-canvas" width="6000" height="4000"></canvas>
+    </div>
+    <div id="selection-box"></div>
+  </div>
+
+  <div id="hint">Paste image (Ctrl/Cmd+V) • Drag empty space to pan • Shift+drag to box-select • Alt+drag or Ctrl+D to duplicate</div>
+  <div id="zoomLabel">100%</div>
+
+  <div id="timer-widget">
+    <span id="timer-display">05:00</span>
+    <select id="timer-preset">
+      <option value="300">5 min</option>
+      <option value="600">10 min</option>
+      <option value="900">15 min</option>
+      <option value="1500">25 min</option>
+      <option value="custom">Custom</option>
+    </select>
+    <input type="number" id="timer-custom" placeholder="min" style="display:none;">
+    <button id="timer-start">▶️</button>
+    <button id="timer-pause">⏸️</button>
+    <button id="timer-reset">🔁</button>
+    <button id="timer-mode">⏱️ Stopwatch</button>
+  </div>
+</div>
+
+<div class="app-view" id="doc-view">
+  <div id="doc-toolbar">
+    <button data-cmd="bold"><b>B</b></button>
+    <button data-cmd="italic"><i>I</i></button>
+    <button data-cmd="underline"><u>U</u></button>
+    <button data-block="h1">H1</button>
+    <button data-block="h2">H2</button>
+    <button data-block="p">¶</button>
+    <button data-cmd="insertUnorderedList">• List</button>
+    <button data-cmd="insertOrderedList">1. List</button>
+    <button id="doc-download"><b>TXT</b></button>
+    <button id="doc-download-pdf"><b>PDF</b></button>
+    <button id="doc-download-docx"><b>DOCX</b></button>
+  </div>
+  <div id="doc-paper">
+    <div id="doc-editable" contenteditable="true">
+      <h1>Untitled document</h1>
+      <p>Start typing here…</p>
+    </div>
+  </div>
+</div>
+
+<div class="app-view" id="slides-view">
+  <div id="slides-editor-bar">
+    <button id="slide-add-text" title="Add text box">🔤 Text</button>
+    <button id="slide-add-image" title="Add image">🖼️ Image</button>
+    <button id="slide-new" title="New slide">➕ Slide</button>
+    <button id="slide-del" title="Delete this slide">🗑️ Delete</button>
+    <button id="slide-export-pdf" title="Export all slides as PDF"><b>PDF</b></button>
+    <button id="slide-export-pptx" title="Export all slides as PowerPoint"><b>PPTX</b></button>
+  </div>
+  <button id="present-btn">▶️ Present</button>
+  <div id="slide-canvas-wrap">
+    <div id="slide-stage"></div>
+  </div>
+  <div id="slide-thumbs"></div>
+  <input type="file" id="slideImageInput" accept="image/*" style="display:none;">
+</div>
+
+<div id="present-overlay">
+  <button id="present-close">✕ Close</button>
+  <div id="present-stage"></div>
+  <div id="present-nav">
+    <button id="present-prev">◀</button>
+    <span id="present-count">1 / 1</span>
+    <button id="present-next">▶</button>
+  </div>
+</div>
+
+<div class="app-view" id="photobooth-view">
+  <div id="pb-layout">
+    <div id="pb-camera-col">
+      <div style="position:relative;">
+        <video id="pb-video" autoplay playsinline></video>
+        <div id="pb-countdown">3</div>
+      </div>
+      <div id="pb-shots-preview"></div>
+      <div id="pb-controls">
+        <select id="pb-shot-count">
+          <option value="1">1 shot</option>
+          <option value="3">3-shot strip</option>
+          <option value="4" selected>4-shot strip</option>
+          <option value="6">6 shots (pick 4)</option>
+          <option value="8">8 shots (pick 4)</option>
+        </select>
+        <button id="pb-start">📸 Start</button>
+        <button id="pb-retake">🔄 Retake all</button>
+      </div>
+      <div id="pb-pick-hint" style="display:none;color:#ffd166;font-size:12px;text-align:center;max-width:400px;">Click photos below to select which ones go in your strip (in click order).</div>
+      <div id="pb-picker-grid"></div>
+    </div>
+    <div id="pb-strip-col">
+      <div id="pb-strip-preview" class="frame-classic">
+        <div id="pb-strip-photos" class="layout-vertical"></div>
+        <div id="pb-strip-caption">koopyeate booth</div>
+      </div>
+      <div id="pb-reorder-hint" style="font-size:11px;color:#999;">Drag thumbnails below to reorder</div>
+      <div id="pb-reorder-strip"></div>
+      <div id="pb-option-row">
+        <label>Layout
+          <select id="pb-layout-select">
+            <option value="vertical">Vertical Strip</option>
+            <option value="horizontal">Horizontal Strip</option>
+            <option value="grid2x2">2×2 Grid</option>
+            <option value="big3">1 Big + 3 Small</option>
+            <option value="big4">1 Big + 4 Small</option>
+          </select>
+        </label>
+        <label>Frame
+          <select id="pb-frame-select">
+            <option value="classic">Classic White</option>
+            <option value="film">Film Strip</option>
+            <option value="polaroid">Polaroid</option>
+            <option value="neon">Neon</option>
+            <option value="hearts">Hearts</option>
+            <option value="scallop">Scalloped</option>
+            <option value="stripes">Candy Stripes</option>
+            <option value="gold">Gold Foil</option>
+            <option value="grid">Grid Lines</option>
+          </select>
+        </label>
+        <label>Filter
+          <select id="pb-filter-select">
+            <option value="none">None</option>
+            <option value="bw">Black & White</option>
+            <option value="sepia">Sepia</option>
+            <option value="vintage">Vintage</option>
+            <option value="bright">Bright</option>
+          </select>
+        </label>
+        <label>Font
+          <select id="pb-font-select">
+            <option value="'Segoe UI', sans-serif">Sans</option>
+            <option value="Georgia, serif">Serif</option>
+            <option value="'Courier New', monospace">Mono</option>
+            <option value="'Brush Script MT', cursive">Script</option>
+            <option value="'Comic Sans MS', cursive">Playful</option>
+            <option value="Impact, sans-serif">Bold Impact</option>
+          </select>
+        </label>
+        <label>Caption
+          <input type="text" id="pb-caption-input" value="koopyeate booth" style="width:120px;padding:5px;border-radius:6px;border:none;">
+        </label>
+      </div>
+      <div class="pb-swatch-row" id="pb-swatch-row"></div>
+      <div id="pb-option-row">
+        <label>Custom color
+          <input type="color" id="pb-frame-color" value="#ffffff">
+        </label>
+      </div>
+      <div id="pb-controls">
+        <button id="pb-add-to-board">➕ Add to board</button>
+        <button id="pb-download-strip">⬇️ Download strip</button>
+      </div>
+    </div>
+  </div>
+  <canvas id="pb-canvas"></canvas>
+  <canvas id="pb-strip-canvas"></canvas>
+  <div id="pb-flash"></div>
+</div>
+
+<div id="table-prompt-overlay">
+  <div id="table-prompt">
+    <h3>New table size</h3>
+    <div class="row">
+      <div><label>Rows</label><input type="number" id="table-rows-input" value="3" min="1" max="30"></div>
+      <div><label>Columns</label><input type="number" id="table-cols-input" value="3" min="1" max="20"></div>
+    </div>
+    <button id="table-prompt-create">Create table</button>
+  </div>
+</div>
+
+<div id="settings-overlay">
+  <div id="settings-panel">
+    <h2>Keybind settings</h2>
+    <p>Click a box and press any key to rebind. Changes save automatically.</p>
+    <div id="keybind-list"></div>
+    <button id="settings-close">Done</button>
+    <button id="settings-reset">Reset to defaults</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  document.querySelectorAll('.app-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('.app-tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.app-view').forEach(v=>v.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.view).classList.add('active');
+      if(tab.dataset.view==='photobooth-view'){ initPhotoboothCamera(); }
+      else { stopPhotoboothCamera(); }
+    });
+  });
+
+  /* ============================================================
+     KEYBINDS
+  ============================================================ */
+  const DEFAULT_KEYBINDS = {
+    select:'v', pen:'p', eraser:'e', sticky:'n', image:'i', camera:'c',
+    table:'t', rect:'r', diamond:'d', circle:'o', connector:'l', mindmap:'m',
+    undo:'ctrl+z', duplicate:'ctrl+d', clear:'ctrl+shift+x', save:'ctrl+s', load:'ctrl+o', png:'ctrl+e', pdf:'ctrl+p'
+  };
+  const ACTION_LABELS = {
+    select:'Select / Move', pen:'Pen', eraser:'Eraser', sticky:'Sticky note', image:'Add image',
+    camera:'Open Photobooth tab', table:'Add table', rect:'Flowchart rectangle', diamond:'Flowchart diamond',
+    circle:'Flowchart circle', connector:'Connector arrow', mindmap:'Mind map node',
+    undo:'Undo', duplicate:'Duplicate selected', clear:'Clear board', save:'Export .json', load:'Import .json', png:'Export PNG', pdf:'Export PDF'
+  };
+  let keybinds = JSON.parse(localStorage.getItem('wb_keybinds')||'null') || Object.assign({}, DEFAULT_KEYBINDS);
+  function saveKeybinds(){ localStorage.setItem('wb_keybinds', JSON.stringify(keybinds)); }
+  function normalizeKeyEvent(e){
+    const parts=[];
+    if(e.ctrlKey||e.metaKey) parts.push('ctrl');
+    if(e.shiftKey) parts.push('shift');
+    if(e.altKey) parts.push('alt');
+    let k = e.key.toLowerCase();
+    if(k===' ') k='space';
+    if(!['control','shift','alt','meta'].includes(k)) parts.push(k);
+    return parts.join('+');
+  }
+  function renderKeybindPanel(){
+    const list = document.getElementById('keybind-list');
+    list.innerHTML='';
+    Object.keys(ACTION_LABELS).forEach(action=>{
+      const row=document.createElement('div'); row.className='keybind-row';
+      const label=document.createElement('span'); label.textContent=ACTION_LABELS[action];
+      const input=document.createElement('input');
+      input.value=(keybinds[action]||'').toUpperCase(); input.readOnly=true;
+      input.addEventListener('click', ()=>{
+        document.querySelectorAll('.keybind-row input').forEach(i=>i.classList.remove('listening'));
+        input.classList.add('listening'); input.value='...';
+        function onKey(e){
+          e.preventDefault();
+          const combo = normalizeKeyEvent(e);
+          if(!combo) return;
+          keybinds[action]=combo; input.value=combo.toUpperCase();
+          input.classList.remove('listening'); saveKeybinds();
+          document.removeEventListener('keydown', onKey, true);
+        }
+        document.addEventListener('keydown', onKey, true);
+      });
+      row.appendChild(label); row.appendChild(input); list.appendChild(row);
+    });
+  }
+  document.getElementById('settings-btn').addEventListener('click', ()=>{ renderKeybindPanel(); document.getElementById('settings-overlay').classList.add('active'); });
+  document.getElementById('settings-close').addEventListener('click', ()=>document.getElementById('settings-overlay').classList.remove('active'));
+  document.getElementById('settings-reset').addEventListener('click', ()=>{ keybinds=Object.assign({},DEFAULT_KEYBINDS); saveKeybinds(); renderKeybindPanel(); });
+  function actionForCombo(combo){ return Object.keys(keybinds).find(a=>keybinds[a]===combo); }
+
+  /* ============================================================
+     TOOL GROUP FLYOUTS
+  ============================================================ */
+  ['draw','content','flow','actions','file'].forEach(g=>{
+    const toggle = document.getElementById('grp-'+g+'-toggle');
+    const flyout = document.getElementById('grp-'+g+'-flyout');
+    toggle.addEventListener('click', e=>{
+      e.stopPropagation();
+      const isOpen = flyout.classList.contains('open');
+      document.querySelectorAll('.group-flyout').forEach(f=>f.classList.remove('open'));
+      document.querySelectorAll('.group-toggle').forEach(t=>t.classList.remove('expanded'));
+      if(!isOpen){ flyout.classList.add('open'); toggle.classList.add('expanded'); }
+    });
+  });
+  document.addEventListener('click', ()=>{
+    document.querySelectorAll('.group-flyout').forEach(f=>f.classList.remove('open'));
+    document.querySelectorAll('.group-toggle').forEach(t=>t.classList.remove('expanded'));
+  });
+
+  /* ============================================================
+     BOARD CORE
+  ============================================================ */
+  const boardWrap = document.getElementById('board-wrap');
+  const canvasLayer = document.getElementById('canvas-layer');
+  const drawCanvas = document.getElementById('draw-canvas');
+  const ctx = drawCanvas.getContext('2d');
+  const zoomLabel = document.getElementById('zoomLabel');
+  const hint = document.getElementById('hint');
+  const selectionBox = document.getElementById('selection-box');
+
+  let scale = 1, panX = 0, panY = 0;
+  let currentTool = 'select';
+  let items = [];
+  let connectors = [];
+  let strokes = [];
+  let selectedIds = [];
+  let idCounter = 1;
+  let history = [];
+  let connectorPending = null;
+  let pendingTablePos = null;
+
+  const STORAGE_KEY = 'wb_board_state_v4';
+
+  function pushHistory(){ history.push(JSON.stringify({items, strokes, connectors})); if(history.length>50) history.shift(); }
+  function saveLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify({items, strokes, connectors, panX, panY, scale})); }
+  function loadLocal(){
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    try{
+      const data = JSON.parse(raw);
+      items = data.items || []; strokes = data.strokes || []; connectors = data.connectors || [];
+      panX = data.panX || 0; panY = data.panY || 0; scale = data.scale || 1;
+      idCounter = items.reduce((m,it)=>Math.max(m, parseInt((it.id.split('_')[1]||0))+1), 1);
+      renderAll(); applyTransform();
+    }catch(e){ console.warn('load failed', e); }
+  }
+  function applyTransform(){
+    canvasLayer.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+    zoomLabel.textContent = Math.round(scale*100) + '%';
+  }
+  function redrawStrokes(){
+    ctx.clearRect(0,0,drawCanvas.width, drawCanvas.height);
+    strokes.forEach(s=>{
+      if(s.points.length < 2) return;
+      ctx.strokeStyle = s.color; ctx.lineWidth = s.size;
+      ctx.lineJoin='round'; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
+      for(let i=1;i<s.points.length;i++) ctx.lineTo(s.points[i].x, s.points[i].y);
+      ctx.stroke();
+    });
+    connectors.forEach(c=>{
+      const a = items.find(i=>i.id===c.fromId), b = items.find(i=>i.id===c.toId);
+      if(!a||!b) return;
+      const ax=a.x+a.w/2, ay=a.y+a.h/2, bx=b.x+b.w/2, by=b.y+b.h/2;
+      ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+      const angle = Math.atan2(by-ay, bx-ax); const hs=10;
+      ctx.beginPath(); ctx.moveTo(bx, by);
+      ctx.lineTo(bx-hs*Math.cos(angle-0.4), by-hs*Math.sin(angle-0.4));
+      ctx.lineTo(bx-hs*Math.cos(angle+0.4), by-hs*Math.sin(angle+0.4));
+      ctx.closePath(); ctx.fillStyle='#555'; ctx.fill();
+    });
+  }
+  function renderAll(){
+    document.querySelectorAll('.item').forEach(el=>el.remove());
+    items.filter(i=>i.type==='sheet').forEach(renderItem);
+    items.filter(i=>i.type!=='sheet').forEach(renderItem);
+    redrawStrokes();
+  }
+
+  function renderItem(item){
+    const el = document.createElement('div');
+    el.dataset.id = item.id;
+    el.style.left = item.x+'px'; el.style.top = item.y+'px';
+    el.style.width = item.w+'px'; el.style.height = item.h+'px';
+
+
+  const layersBtn = document.getElementById('layers-btn');
+  const layersPanel = document.getElementById('layers-panel');
+  const layersList = document.getElementById('layers-list');
+  layersBtn.addEventListener('click', ()=>{ layersPanel.classList.toggle('open'); renderLayersPanel(); });
+
+  function itemLabel(it){
+    if(it.type==='sticky') return '🗒️ '+(it.text||'Note').slice(0,20);
+    if(it.type==='image') return '🖼️ Image';
+    if(it.type==='table') return '🔢 Table '+it.rows+'x'+it.cols;
+    if(it.type==='flow') return '▭ '+(it.text||it.shape);
+    if(it.type==='sheet') return '📄 '+(it.label||'Sheet');
+    return it.type;
+  }
+
+  function renderLayersPanel(){
+    layersList.innerHTML='';
+    items.slice().reverse().forEach((it, revIdx)=>{
+      const realIdx = items.length-1-revIdx;
+      const row=document.createElement('div');
+      row.className='layer-row'+(selectedIds.includes(it.id)?' active':'');
+      row.draggable=true;
+      row.dataset.idx=realIdx;
+      const label=document.createElement('span'); label.className='layer-label'; label.textContent=itemLabel(it);
+      row.appendChild(label);
+      const upBtn=document.createElement('button'); upBtn.textContent='⬆️'; upBtn.title='Bring forward';
+      upBtn.addEventListener('click', e=>{ e.stopPropagation(); moveLayer(realIdx, 1); });
+      const downBtn=document.createElement('button'); downBtn.textContent='⬇️'; downBtn.title='Send backward';
+      downBtn.addEventListener('click', e=>{ e.stopPropagation(); moveLayer(realIdx, -1); });
+      const delBtn=document.createElement('button'); delBtn.textContent='🗑️'; delBtn.title='Delete';
+      delBtn.addEventListener('click', e=>{
+        e.stopPropagation();
+        deleteItemsToTrash([it.id]);
+        renderLayersPanel();
+      });
+      row.appendChild(upBtn); row.appendChild(downBtn); row.appendChild(delBtn);
+      row.addEventListener('click', ()=>{ setSelection([it.id]); renderLayersPanel(); });
+      row.addEventListener('dragstart', ()=>{ row.classList.add('dragging'); });
+      row.addEventListener('dragend', ()=>{ row.classList.remove('dragging'); });
+      row.addEventListener('dragover', e=>e.preventDefault());
+      row.addEventListener('drop', e=>{
+        e.preventDefault();
+        const draggingRow = layersList.querySelector('.dragging');
+        if(!draggingRow || draggingRow===row) return;
+        const fromIdx = parseInt(draggingRow.dataset.idx);
+        const toIdx = parseInt(row.dataset.idx);
+        const moved = items.splice(fromIdx,1)[0];
+        items.splice(toIdx,0,moved);
+        pushHistory(); renderAll(); saveLocal(); renderLayersPanel();
+      });
+      layersList.appendChild(row);
+    });
+  }
+
+  function moveLayer(idx, dir){
+    const newIdx = idx+dir;
+    if(newIdx<0 || newIdx>=items.length) return;
+    const [moved] = items.splice(idx,1);
+    items.splice(newIdx,0,moved);
+    pushHistory(); renderAll(); saveLocal(); renderLayersPanel();
+  }
+    
+    if(item.type==='sheet'){
+      el.className='item board-sheet';
+      const label=document.createElement('div'); label.className='sheet-label'; label.textContent=item.label||'Sheet';
+      el.appendChild(label);
+    } else if(item.type==='sticky'){
+      el.className='item sticky';
+      el.style.background = item.color || '#fff8b0';
+      el.contentEditable=false; el.innerText = item.text||'';
+      el.addEventListener('dblclick', e=>{ el.contentEditable=true; el.focus(); e.stopPropagation(); });
+      el.addEventListener('blur', ()=>{ el.contentEditable=false; item.text=el.innerText; saveLocal(); });
+    } else if(item.type==='image'){
+      el.className='item img-item';
+      const img=document.createElement('img'); img.src=item.src; img.draggable=false;
+      el.appendChild(img);
+    } else if(item.type==='table'){
+      el.className='item table-item';
+      buildTable(el, item);
+    } else if(item.type==='flow'){
+      el.className='item flow-node shape-'+item.shape;
+      el.contentEditable=false; el.innerText = item.text||'';
+      el.addEventListener('dblclick', e=>{ el.contentEditable=true; el.focus(); e.stopPropagation(); });
+      el.addEventListener('blur', ()=>{ el.contentEditable=false; item.text=el.innerText; saveLocal(); });
+      ['t','b','l','r'].forEach(pos=>{
+        const anchor=document.createElement('div');
+        anchor.className='flow-anchor anchor-'+pos;
+        anchor.addEventListener('mousedown', e=>{ e.stopPropagation(); startConnectorDrag(item.id); });
+        el.appendChild(anchor);
+      });
+    }
+
+    if(item.type!=='sheet'){
+      const delH = document.createElement('div');
+      delH.className='del-handle'; delH.innerHTML='×';
+      delH.addEventListener('mousedown', e=>e.stopPropagation());
+      delH.addEventListener('click', e=>{
+        e.stopPropagation();
+        deleteItemsToTrash([item.id]);
+      });
+      el.appendChild(delH);
+
+      const dupH = document.createElement('div');
+      dupH.className='dup-handle'; dupH.innerHTML='⧉';
+      dupH.title='Duplicate';
+      dupH.addEventListener('mousedown', e=>e.stopPropagation());
+      dupH.addEventListener('click', e=>{ e.stopPropagation(); duplicateItems([item.id]); });
+      el.appendChild(dupH);
+
+      const resizeH = document.createElement('div');
+      resizeH.className='resize-handle';
+      resizeH.addEventListener('mousedown', e=>startResizeItem(e,item,el));
+      el.appendChild(resizeH);
+    } else {
+      const resizeH = document.createElement('div');
+      resizeH.className='resize-handle';
+      resizeH.style.display='block';
+      resizeH.addEventListener('mousedown', e=>startResizeItem(e,item,el));
+      el.appendChild(resizeH);
+    }
+
+    el.addEventListener('mousedown', e=>startDragItem(e,item,el));
+    canvasLayer.appendChild(el);
+  }
+
+  function buildTable(el, item){
+    el.innerHTML='';
+    const tbl = document.createElement('table');
+    for(let r=0;r<item.rows;r++){
+      const tr=document.createElement('tr');
+      for(let c=0;c<item.cols;c++){
+        const td=document.createElement('td');
+        td.contentEditable=true;
+        td.innerText = (item.data && item.data[r] && item.data[r][c]) || '';
+        td.addEventListener('mousedown', e=>e.stopPropagation());
+        td.addEventListener('blur', ()=>{
+          if(!item.data) item.data=[];
+          if(!item.data[r]) item.data[r]=[];
+          item.data[r][c]=td.innerText; saveLocal();
+        });
+        tr.appendChild(td);
+      }
+      tbl.appendChild(tr);
+    }
+    el.appendChild(tbl);
+    const tbar=document.createElement('div'); tbar.className='table-toolbar';
+    const mk=(txt,fn)=>{ const b=document.createElement('button'); b.innerText=txt;
+      b.addEventListener('mousedown', e=>e.stopPropagation());
+      b.addEventListener('click', e=>{ e.stopPropagation(); fn(); pushHistory(); renderAll(); saveLocal(); });
+      return b; };
+    tbar.appendChild(mk('+Row', ()=>item.rows++));
+    tbar.appendChild(mk('-Row', ()=>{ if(item.rows>1) item.rows--; }));
+    tbar.appendChild(mk('+Col', ()=>item.cols++));
+    tbar.appendChild(mk('-Col', ()=>{ if(item.cols>1) item.cols--; }));
+    el.appendChild(tbar);
+  }
+
+  function setSelection(ids){
+    selectedIds = ids;
+    document.querySelectorAll('.item').forEach(el=>{
+      el.classList.toggle('selected', selectedIds.length===1 && el.dataset.id===selectedIds[0]);
+      el.classList.toggle('multi-selected', selectedIds.length>1 && selectedIds.includes(el.dataset.id));
+    });
+  }
+  function deselectAll(){ setSelection([]); }
+
+  function duplicateItems(ids){
+    const newIds = [];
+    ids.forEach(id=>{
+      const orig = items.find(i=>i.id===id);
+      if(!orig) return;
+      const copy = JSON.parse(JSON.stringify(orig));
+      copy.id = 'item_'+idCounter++;
+      copy.x += 24; copy.y += 24;
+      items.push(copy); newIds.push(copy.id);
+    });
+    pushHistory(); renderAll(); saveLocal();
+    setSelection(newIds);
+  }
+
+  function startDragItem(e, item, el){
+    if(currentTool!=='select') return;
+    e.stopPropagation();
+
+    if(e.altKey){
+      duplicateItems(selectedIds.includes(item.id) ? selectedIds : [item.id]);
+      const dragIds = selectedIds;
+      const startX=e.clientX, startY=e.clientY;
+      const origins = dragIds.map(id=>{ const it=items.find(i=>i.id===id); return {id, x:it.x, y:it.y}; });
+      function onMove(ev){
+        const dx=(ev.clientX-startX)/scale, dy=(ev.clientY-startY)/scale;
+        origins.forEach(o=>{ const it=items.find(i=>i.id===o.id); it.x=o.x+dx; it.y=o.y+dy; });
+        renderAll();
+      }
+      function onUp(){ document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); pushHistory(); saveLocal(); }
+      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+      return;
+    }
+
+    if(!selectedIds.includes(item.id)) setSelection([item.id]);
+    const dragIds = selectedIds.length ? selectedIds : [item.id];
+    const startX=e.clientX, startY=e.clientY;
+    const origins = dragIds.map(id=>{ const it=items.find(i=>i.id===id); return {id, x:it.x, y:it.y}; });
+    function onMove(ev){
+      const dx=(ev.clientX-startX)/scale, dy=(ev.clientY-startY)/scale;
+      origins.forEach(o=>{
+        const it=items.find(i=>i.id===o.id);
+        it.x=o.x+dx; it.y=o.y+dy;
+        const domEl = document.querySelector(`.item[data-id="${o.id}"]`);
+        if(domEl){ domEl.style.left=it.x+'px'; domEl.style.top=it.y+'px'; }
+      });
+      redrawStrokes();
+    }
+    function onUp(){ document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); pushHistory(); saveLocal(); }
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+  }
+
+  function startResizeItem(e, item, el){
+    e.stopPropagation(); e.preventDefault();
+    const startX=e.clientX, startY=e.clientY, origW=item.w, origH=item.h;
+    const aspect = origW/origH;
+    function onMove(ev){
+      const dx=(ev.clientX-startX)/scale, dy=(ev.clientY-startY)/scale;
+      if(ev.shiftKey){
+        const delta = Math.abs(dx)>Math.abs(dy) ? dx : dy;
+        item.w=Math.max(60, origW+delta);
+        item.h=Math.max(40, item.w/aspect);
+      } else {
+        item.w=Math.max(60, origW+dx); item.h=Math.max(40, origH+dy);
+      }
+      el.style.width=item.w+'px'; el.style.height=item.h+'px';
+      if(item.type==='table') buildTable(el, item);
+    }
+    function onUp(){ document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); pushHistory(); saveLocal(); }
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+  }
+
+  function startConnectorDrag(fromId){
+    connectorPending = fromId;
+    hint.textContent = 'Click a target node to connect...'; hint.style.opacity='1';
+  }
+
+  function screenToCanvas(clientX, clientY){
+    const rect = boardWrap.getBoundingClientRect();
+    return { x:(clientX-rect.left-panX)/scale, y:(clientY-rect.top-panY)/scale };
+  }
+
+  function addSticky(x,y){
+    const item={id:'item_'+idCounter++, type:'sticky', x:x-90,y:y-60,w:180,h:120,text:'New note...',color:'#fff8b0'};
+    items.push(item); pushHistory(); renderAll(); saveLocal();
+    setTimeout(()=>{ const el=document.querySelector(`.item[data-id="${item.id}"]`);
+      if(el){ el.contentEditable=true; el.focus(); document.execCommand('selectAll',false,null); } },30);
+  }
+  function addImage(src,x,y,natW,natH){
+    const maxDim=360; let w=natW,h=natH;
+    if(w>maxDim||h>maxDim){ const ratio=Math.min(maxDim/w,maxDim/h); w*=ratio; h*=ratio; }
+    const item={id:'item_'+idCounter++, type:'image', x:x-w/2,y:y-h/2,w,h,src};
+    items.push(item); pushHistory(); renderAll(); saveLocal();
+  }
+  function addTable(x,y,rows,cols){
+    const w = Math.max(200, cols*90), h = Math.max(100, rows*36+30);
+    const item={id:'item_'+idCounter++, type:'table', x:x-w/2,y:y-h/2,w,h,rows,cols,data:[]};
+    items.push(item); pushHistory(); renderAll(); saveLocal();
+  }
+  function addFlowNode(shape,x,y,text){
+    const w = shape==='mindnode'?140:120, h= shape==='mindnode'?60:80;
+    const item={id:'item_'+idCounter++, type:'flow', shape, x:x-w/2, y:y-h/2, w, h, text: text||(shape==='mindnode'?'Idea':'Step')};
+    items.push(item); pushHistory(); renderAll(); saveLocal();
+  }
+  function loadImageFile(file, dropX, dropY){
+    const reader = new FileReader();
+    reader.onload = e=>{
+      const img=new Image();
+      img.onload=()=>addImage(e.target.result, dropX, dropY, img.width, img.height);
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /* ============================================================
+     PLACEABLE SHEETS
+  ============================================================ */
+  const SHEET_SIZES = {
+    'presentation': {w:1600, h:900, label:'Presentation 16:9'},
+    'a4-portrait': {w:1240, h:1754, label:'A4 Portrait'},
+    'a4-landscape': {w:1754, h:1240, label:'A4 Landscape'},
+    'square': {w:1200, h:1200, label:'Square 1:1'}
+  };
+  document.getElementById('btn-place-sheet').addEventListener('click', ()=>{
+    const key = document.getElementById('board-size-select').value;
+    let size;
+    if(key==='custom'){
+      const w = parseInt(prompt('Sheet width (px):','1200'))||1200;
+      const h = parseInt(prompt('Sheet height (px):','800'))||800;
+      size = {w,h,label:'Custom '+w+'×'+h};
+    } else size = SHEET_SIZES[key];
+    const c = screenToCanvas(innerWidth/2, innerHeight/2);
+    const item = {id:'item_'+idCounter++, type:'sheet', x:c.x-size.w/2, y:c.y-size.h/2, w:size.w, h:size.h, label:size.label};
+    items.push(item); pushHistory(); renderAll(); saveLocal();
+  });
+
+  /* ============================================================
+     TABLE SIZE PROMPT
+  ============================================================ */
+  const tablePromptOverlay = document.getElementById('table-prompt-overlay');
+  document.getElementById('tool-table').addEventListener('click', () => tablePromptOverlay.classList.add('active'));
+  document.getElementById('table-prompt-create').addEventListener('click', () => {
+    const rows = Math.max(1, parseInt(document.getElementById('table-rows-input').value)||3);
+    const cols = Math.max(1, parseInt(document.getElementById('table-cols-input').value)||3);
+    tablePromptOverlay.classList.remove('active');
+    const c = pendingTablePos || screenToCanvas(innerWidth/2, innerHeight/2);
+    addTable(c.x, c.y, rows, cols);
+    resetToSelect();
+  });
+
+  /* ============================================================
+     ACTIONS
+  ============================================================ */
+  function runAction(action){
+    switch(action){
+      case 'select': case 'pen': case 'eraser': case 'sticky': case 'image':
+      case 'table': case 'rect': case 'diamond': case 'circle': case 'connector': case 'mindmap':
+        setTool(action); break;
+      case 'camera':
+        document.querySelector('.app-tab[data-view="photobooth-view"]').click();
+        break;
+      case 'undo': undo(); break;
+      case 'duplicate': if(selectedIds.length) duplicateItems(selectedIds); break;
+      case 'clear':
+        if(confirm('Clear the entire board?')){ pushHistory(); items=[]; strokes=[]; connectors=[]; renderAll(); saveLocal(); }
+        break;
+      case 'save': exportJSON(); break;
+      case 'load': document.getElementById('fileInput').click(); break;
+      case 'png': exportPNG(); break;
+      case 'pdf': exportPDF(); break;
+      case 'pptx': exportBoardPPTX(); break;
+    }
+  }
+
+  function exportBoardPPTX(){
+    renderToCanvas(out=>{
+      const pptx = new PptxGenJS();
+      const wIn = out.width/96, hIn = out.height/96;
+      pptx.defineLayout({name:'BOARD', width:wIn, height:hIn});
+      pptx.layout='BOARD';
+      const slide = pptx.addSlide();
+      slide.addImage({data: out.toDataURL('image/png'), x:0, y:0, w:wIn, h:hIn});
+      pptx.writeFile({fileName:'whiteboard-export.pptx'});
+    });
+  }
+
+  function setTool(tool){
+    if(tool==='image'){ document.getElementById('imageInput').click(); return; }
+    if(tool==='table'){ document.getElementById('tool-table').click(); return; }
+    currentTool = tool;
+    document.querySelectorAll('#toolbar .tool-btn').forEach(b=>b.classList.remove('active'));
+    const btn = document.getElementById('tool-'+tool);
+    if(btn) btn.classList.add('active');
+    boardWrap.style.cursor = tool==='select' ? 'grab' : (['pen','eraser'].includes(tool)?'crosshair':'copy');
+    if(tool!=='connector'){ connectorPending=null; hint.textContent='Paste image (Ctrl/Cmd+V) • Drag empty space to pan • Shift+drag to box-select • Alt+drag or Ctrl+D to duplicate'; }
+  }
+
+  document.querySelectorAll('#toolbar .tool-btn[data-action]').forEach(btn=>{
+    btn.addEventListener('click', ()=>runAction(btn.dataset.action));
+  });
+
+  document.getElementById('imageInput').addEventListener('change', e=>{
+    const file=e.target.files[0];
+    if(file){ const c=screenToCanvas(innerWidth/2, innerHeight/2); loadImageFile(file, c.x, c.y); }
+    e.target.value='';
+  });
+
+  function exportJSON(){
+    const data=JSON.stringify({items,strokes,connectors,panX,panY,scale},null,2);
+    const blob=new Blob([data],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='whiteboard-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  }
+  document.getElementById('fileInput').addEventListener('change', e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        items=data.items||[]; strokes=data.strokes||[]; connectors=data.connectors||[];
+        panX=data.panX||0; panY=data.panY||0; scale=data.scale||1;
+        idCounter = items.reduce((m,it)=>Math.max(m, parseInt((it.id.split('_')[1]||0))+1), 1);
+        renderAll(); applyTransform(); saveLocal();
+      }catch(err){ alert('Invalid board file.'); }
+    };
+    reader.readAsText(file); e.target.value='';
+  });
+
+  function computeBounds(){
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    items.forEach(it=>{ minX=Math.min(minX,it.x); minY=Math.min(minY,it.y); maxX=Math.max(maxX,it.x+it.w); maxY=Math.max(maxY,it.y+it.h); });
+    strokes.forEach(s=>s.points.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); }));
+    if(minX===Infinity){ minX=0;minY=0;maxX=800;maxY=600; }
+    const pad=40; return {minX:minX-pad, minY:minY-pad, maxX:maxX+pad, maxY:maxY+pad};
+  }
+
+  function renderToCanvas(callback){
+    const b = computeBounds();
+    const w=b.maxX-b.minX, h=b.maxY-b.minY;
+    const out=document.createElement('canvas'); out.width=w; out.height=h;
+    const octx=out.getContext('2d');
+    octx.fillStyle='#f4f4f2'; octx.fillRect(0,0,w,h);
+    items.filter(it=>it.type==='sheet').forEach(it=>{
+      octx.fillStyle='#fff'; octx.fillRect(it.x-b.minX, it.y-b.minY, it.w, it.h);
+    });
+    octx.drawImage(drawCanvas, b.minX, b.minY, w, h, 0, 0, w, h);
+    const imgItems = items.filter(it=>it.type==='image');
+    let pending = imgItems.length;
+    items.filter(it=>it.type==='sticky'||it.type==='flow').forEach(it=>{
+      octx.fillStyle = it.color || (it.type==='flow'?'#e8f0ff':'#fff8b0');
+      octx.fillRect(it.x-b.minX, it.y-b.minY, it.w, it.h);
+      octx.fillStyle='#222'; octx.font='14px sans-serif';
+      wrapText(octx, it.text||'', it.x-b.minX+8, it.y-b.minY+18, it.w-16, 18);
+    });
+    items.filter(it=>it.type==='table').forEach(it=>{
+      octx.strokeStyle='#ccc'; octx.strokeRect(it.x-b.minX, it.y-b.minY, it.w, it.h);
+    });
+    if(pending===0){ callback(out); return; }
+    imgItems.forEach(it=>{
+      const im=new Image();
+      im.onload=()=>{ octx.drawImage(im, it.x-b.minX, it.y-b.minY, it.w, it.h); pending--; if(pending===0) callback(out); };
+      im.src=it.src;
+    });
+  }
+  function wrapText(ctx,text,x,y,maxWidth,lineHeight){
+    const words=text.split(' '); let line='';
+    for(let n=0;n<words.length;n++){
+      const testLine=line+words[n]+' ';
+      if(ctx.measureText(testLine).width>maxWidth && n>0){ ctx.fillText(line,x,y); line=words[n]+' '; y+=lineHeight; }
+      else line=testLine;
+    }
+    ctx.fillText(line,x,y);
+  }
+  function exportPNG(){
+    renderToCanvas(out=>{ const a=document.createElement('a'); a.href=out.toDataURL('image/png'); a.download='whiteboard-export.png'; a.click(); });
+  }
+  function exportPDF(){
+    renderToCanvas(out=>{
+      const { jsPDF } = window.jspdf;
+      const orientation = out.width>out.height ? 'l':'p';
+      const pdf = new jsPDF({orientation, unit:'px', format:[out.width, out.height]});
+      pdf.addImage(out.toDataURL('image/png'), 'PNG', 0, 0, out.width, out.height);
+      pdf.save('whiteboard-export.pdf');
+    });
+  }
+
+  function undo(){
+    if(history.length<2) return;
+    history.pop();
+    const prev=JSON.parse(history[history.length-1]);
+    items=prev.items; strokes=prev.strokes; connectors=prev.connectors||[];
+    renderAll(); saveLocal();
+  }
+
+    let trashBin = JSON.parse(localStorage.getItem('wb_trash')||'[]'); // [{item, deletedAt}]
+  function saveTrash(){ localStorage.setItem('wb_trash', JSON.stringify(trashBin)); }
+
+  function deleteItemsToTrash(ids){
+    ids.forEach(id=>{
+      const it = items.find(i=>i.id===id);
+      if(it) trashBin.unshift({item: JSON.parse(JSON.stringify(it)), deletedAt: Date.now()});
+    });
+    if(trashBin.length>50) trashBin = trashBin.slice(0,50);
+    saveTrash();
+    items = items.filter(it=>!ids.includes(it.id));
+    connectors = connectors.filter(c=>!ids.includes(c.fromId) && !ids.includes(c.toId));
+    selectedIds = selectedIds.filter(id=>!ids.includes(id));
+    pushHistory(); renderAll(); saveLocal();
+  }
+
+  function restoreFromTrash(trashIdx){
+    const entry = trashBin[trashIdx];
+    if(!entry) return;
+    const copy = JSON.parse(JSON.stringify(entry.item));
+    copy.id = 'item_'+idCounter++;
+    items.push(copy);
+    trashBin.splice(trashIdx,1);
+    saveTrash(); pushHistory(); renderAll(); saveLocal(); renderTrashList();
+  }
+
+  const historyBtn = document.getElementById('history-btn');
+  const historyPanel = document.getElementById('history-panel');
+  const historyListEl = document.getElementById('history-list');
+  const trashListEl = document.getElementById('trash-list');
+  historyBtn.addEventListener('click', ()=>{ historyPanel.classList.toggle('open'); renderHistoryList(); renderTrashList(); });
+
+  document.querySelectorAll('#history-tabs button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#history-tabs button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.htab;
+      historyListEl.style.display = tab==='versions' ? 'block':'none';
+      trashListEl.style.display = tab==='trash' ? 'block':'none';
+    });
+  });
+
+  function renderHistoryList(){
+    historyListEl.innerHTML='';
+    history.slice().reverse().forEach((snapshot, revIdx)=>{
+      const idx = history.length-1-revIdx;
+      const row=document.createElement('div'); row.className='history-row';
+      const parsed = JSON.parse(snapshot);
+      row.innerHTML = `<span>Version ${idx+1} — ${parsed.items.length} items</span>`;
+      row.addEventListener('click', ()=>{
+        if(!confirm('Restore this version? Current state will be saved to history first.')) return;
+        pushHistory();
+        items = parsed.items; strokes = parsed.strokes; connectors = parsed.connectors||[];
+        renderAll(); saveLocal();
+      });
+      historyListEl.appendChild(row);
+    });
+  }
+
+  function renderTrashList(){
+    trashListEl.innerHTML='';
+    if(!trashBin.length){ trashListEl.innerHTML='<div class="trash-row">Trash is empty</div>'; return; }
+    trashBin.forEach((entry, idx)=>{
+      const row=document.createElement('div'); row.className='trash-row';
+      const label=document.createElement('span'); label.textContent=itemLabel(entry.item);
+      const btn=document.createElement('button'); btn.textContent='Restore';
+      btn.addEventListener('click', ()=>restoreFromTrash(idx));
+      row.appendChild(label); row.appendChild(btn);
+      trashListEl.appendChild(row);
+    });
+  }
+
+  /* ============================================================
+     DRAWING / PAN (default drag) / SHIFT+DRAG MARQUEE SELECT
+  ============================================================ */
+  let drawing=false, currentStroke=null;
+  let marqueeActive=false, marqueeStart=null;
+  let isPanning=false, panStart=null, panOrigin=null;
+
+  boardWrap.addEventListener('mousedown', e=>{
+    const onEmptyCanvas = (e.target===boardWrap || e.target===canvasLayer || e.target===drawCanvas);
+
+    if(currentTool==='pen' || currentTool==='eraser'){
+      drawing=true;
+      const p=screenToCanvas(e.clientX,e.clientY);
+      currentStroke={points:[p], color: currentTool==='eraser'?'#f4f4f2':document.getElementById('penColor').value,
+        size: currentTool==='eraser'?25:parseInt(document.getElementById('penSize').value)};
+      strokes.push(currentStroke);
+      return;
+    }
+    if(currentTool==='sticky' && onEmptyCanvas){ const p=screenToCanvas(e.clientX,e.clientY); addSticky(p.x,p.y); resetToSelect(); return; }
+    if(currentTool==='table' && onEmptyCanvas){ pendingTablePos=screenToCanvas(e.clientX,e.clientY); tablePromptOverlay.classList.add('active'); return; }
+    if(currentTool==='rect' && onEmptyCanvas){ const p=screenToCanvas(e.clientX,e.clientY); addFlowNode('rect',p.x,p.y); resetToSelect(); return; }
+    if(currentTool==='diamond' && onEmptyCanvas){ const p=screenToCanvas(e.clientX,e.clientY); addFlowNode('diamond',p.x,p.y); resetToSelect(); return; }
+    if(currentTool==='circle' && onEmptyCanvas){ const p=screenToCanvas(e.clientX,e.clientY); addFlowNode('circle',p.x,p.y); resetToSelect(); return; }
+    if(currentTool==='mindmap' && onEmptyCanvas){ const p=screenToCanvas(e.clientX,e.clientY); addFlowNode('mindnode',p.x,p.y); resetToSelect(); return; }
+
+    if(currentTool==='select' && onEmptyCanvas){
+      if(e.shiftKey){
+        deselectAll();
+        marqueeActive=true;
+        const rect=boardWrap.getBoundingClientRect();
+        marqueeStart={x:e.clientX-rect.left, y:e.clientY-rect.top};
+        selectionBox.style.left=marqueeStart.x+'px'; selectionBox.style.top=marqueeStart.y+'px';
+        selectionBox.style.width='0px'; selectionBox.style.height='0px';
+        selectionBox.style.display='block';
+      } else {
+        deselectAll();
+        isPanning=true; panStart={x:e.clientX,y:e.clientY}; panOrigin={x:panX,y:panY};
+        boardWrap.classList.add('panning');
+      }
+    }
+  });
+
+  canvasLayer.addEventListener('click', e=>{
+    if(currentTool!=='connector') return;
+    const el = e.target.closest('.item');
+    if(!el) return;
+    const id = el.dataset.id;
+    if(!connectorPending){ connectorPending=id; hint.textContent='Now click the target node...'; hint.style.opacity='1'; }
+    else if(connectorPending!==id){
+      connectors.push({fromId:connectorPending, toId:id});
+      connectorPending=null; pushHistory(); renderAll(); saveLocal();
+      hint.textContent='Connector added.'; setTimeout(()=>hint.style.opacity='0',1500);
+    }
+  });
+
+  boardWrap.addEventListener('mousemove', e=>{
+    if(drawing && currentStroke){
+      const p=screenToCanvas(e.clientX,e.clientY);
+      currentStroke.points.push(p); redrawStrokes();
+    }
+    if(marqueeActive){
+      const rect=boardWrap.getBoundingClientRect();
+      const curX=e.clientX-rect.left, curY=e.clientY-rect.top;
+      const x=Math.min(marqueeStart.x,curX), y=Math.min(marqueeStart.y,curY);
+      const w=Math.abs(curX-marqueeStart.x), h=Math.abs(curY-marqueeStart.y);
+      selectionBox.style.left=x+'px'; selectionBox.style.top=y+'px';
+      selectionBox.style.width=w+'px'; selectionBox.style.height=h+'px';
+    }
+    if(isPanning){ panX=panOrigin.x+(e.clientX-panStart.x); panY=panOrigin.y+(e.clientY-panStart.y); applyTransform(); }
+  });
+  window.addEventListener('mouseup', e=>{
+    if(drawing){ drawing=false; currentStroke=null; pushHistory(); saveLocal(); }
+    if(marqueeActive){
+      marqueeActive=false;
+      const rect=boardWrap.getBoundingClientRect();
+      const boxLeft=parseFloat(selectionBox.style.left), boxTop=parseFloat(selectionBox.style.top);
+      const boxW=parseFloat(selectionBox.style.width), boxH=parseFloat(selectionBox.style.height);
+      selectionBox.style.display='none';
+      if(boxW>4 && boxH>4){
+        const c1 = screenToCanvas(rect.left+boxLeft, rect.top+boxTop);
+        const c2 = screenToCanvas(rect.left+boxLeft+boxW, rect.top+boxTop+boxH);
+        const hits = items.filter(it=>
+          it.type!=='sheet' && it.x < c2.x && it.x+it.w > c1.x && it.y < c2.y && it.y+it.h > c1.y
+        ).map(it=>it.id);
+        setSelection(hits);
+      }
+    }
+    if(isPanning){ isPanning=false; boardWrap.classList.remove('panning'); saveLocal(); }
+  });
+
+  boardWrap.addEventListener('mousedown', e=>{
+    if(e.button===1){
+      isPanning=true; panStart={x:e.clientX,y:e.clientY}; panOrigin={x:panX,y:panY};
+      boardWrap.classList.add('panning');
+    }
+  });
+
+  boardWrap.addEventListener('wheel', e=>{
+    if(e.ctrlKey||e.metaKey){
+      e.preventDefault();
+      const delta = e.deltaY>0?-0.1:0.1;
+      const newScale = Math.min(4, Math.max(0.2, scale+delta));
+      const rect=boardWrap.getBoundingClientRect();
+      const cx=e.clientX-rect.left, cy=e.clientY-rect.top;
+      panX = cx-((cx-panX)/scale)*newScale; panY = cy-((cy-panY)/scale)*newScale;
+      scale=newScale; applyTransform(); saveLocal();
+    } else { panX -= e.deltaX; panY -= e.deltaY; applyTransform(); }
+  }, {passive:false});
+
+  function resetToSelect(){
+    currentTool='select';
+    document.querySelectorAll('#toolbar .tool-btn').forEach(b=>b.classList.remove('active'));
+    document.getElementById('tool-select').classList.add('active');
+  }
+
+  window.addEventListener('paste', e=>{
+    if(!document.getElementById('board-view').classList.contains('active')) return;
+    const cbItems = e.clipboardData.items;
+    for(let i=0;i<cbItems.length;i++){
+      if(cbItems[i].type.indexOf('image')!==-1){
+        const file=cbItems[i].getAsFile();
+        const c=screenToCanvas(innerWidth/2, innerHeight/2);
+        loadImageFile(file, c.x, c.y); e.preventDefault(); return;
+      }
+    }
+    const text=e.clipboardData.getData('text');
+    if(text && document.activeElement.contentEditable!=='true'){
+      const c=screenToCanvas(innerWidth/2, innerHeight/2);
+      const item={id:'item_'+idCounter++, type:'sticky', x:c.x-90,y:c.y-60,w:220,h:140,text:text.slice(0,500),color:'#c9f0ff'};
+      items.push(item); pushHistory(); renderAll(); saveLocal();
+    }
+  });
+
+  boardWrap.addEventListener('dragover', e=>e.preventDefault());
+  boardWrap.addEventListener('drop', e=>{
+    e.preventDefault();
+    const p=screenToCanvas(e.clientX,e.clientY);
+    const files=e.dataTransfer.files;
+    for(let i=0;i<files.length;i++) if(files[i].type.indexOf('image')!==-1) loadImageFile(files[i], p.x+i*30, p.y+i*30);
+  });
+
+  window.addEventListener('keydown', e=>{
+    if(document.activeElement.contentEditable==='true') return;
+    if(document.getElementById('settings-overlay').classList.contains('active')) return;
+    const combo = normalizeKeyEvent(e);
+    const action = actionForCombo(combo);
+    if(action){
+      if(combo.includes('ctrl')||combo.includes('meta')) e.preventDefault();
+      runAction(action); return;
+    }
+    if((e.key==='Delete'||e.key==='Backspace') && selectedIds.length){
+      deleteItemsToTrash(selectedIds);
+    }
+  });
+
+  panX = innerWidth/2 - 3000; panY = innerHeight/2 - 2000;
+  pushHistory(); loadLocal(); applyTransform();
+  setTimeout(()=>{ if(hint.textContent.startsWith('Paste')) hint.style.opacity='0'; }, 7000);
+
+  /* ============================================================
+  TIMER WIDGET
+  ============================================================ */
+  let timerMode='countdown', timerSeconds=300, timerInterval=null, stopwatchSeconds=0;
+  const timerDisplay=document.getElementById('timer-display');
+  const timerPreset=document.getElementById('timer-preset');
+  const timerCustom=document.getElementById('timer-custom');
+  function fmt(s){ const m=Math.floor(Math.abs(s)/60), sec=Math.abs(s)%60; return (s<0?'-':'')+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0'); }
+  function renderTimer(){ timerDisplay.textContent = timerMode==='countdown' ? fmt(timerSeconds) : fmt(stopwatchSeconds); }
+  timerPreset.addEventListener('change', ()=>{
+    timerCustom.style.display = timerPreset.value==='custom' ? 'inline-block' : 'none';
+    if(timerPreset.value!=='custom'){ timerSeconds=parseInt(timerPreset.value); renderTimer(); }
+  });
+  timerCustom.addEventListener('input', ()=>{ timerSeconds = (parseFloat(timerCustom.value)||0)*60; renderTimer(); });
+  document.getElementById('timer-mode').addEventListener('click', function(){
+    timerMode = timerMode==='countdown' ? 'stopwatch' : 'countdown';
+    this.textContent = timerMode==='countdown' ? '⏱️ Stopwatch' : '⏳ Countdown';
+    clearInterval(timerInterval); timerInterval=null; renderTimer();
+  });
+  document.getElementById('timer-start').addEventListener('click', ()=>{
+    if(timerInterval) return;
+    timerInterval=setInterval(()=>{
+      if(timerMode==='countdown'){ timerSeconds--; if(timerSeconds<=0){ clearInterval(timerInterval); timerInterval=null; alert('Time up!'); } }
+      else stopwatchSeconds++;
+      renderTimer();
+    },1000);
+  });
+  document.getElementById('timer-pause').addEventListener('click', ()=>{ clearInterval(timerInterval); timerInterval=null; });
+  document.getElementById('timer-reset').addEventListener('click', ()=>{
+    clearInterval(timerInterval); timerInterval=null;
+    if(timerMode==='countdown') timerSeconds = timerPreset.value==='custom' ? (parseFloat(timerCustom.value)||0)*60 : parseInt(timerPreset.value);
+    else stopwatchSeconds=0;
+    renderTimer();
+  });
+  renderTimer();
+
+  /* ============================================================
+     PHOTOBOOTH V4 — own tab, presets, extra frames, reorder, pick mode, fonts, grid layouts
+  ============================================================ */
+  const pbVideo=document.getElementById('pb-video');
+  const pbCanvas=document.getElementById('pb-canvas');
+  const pbStripCanvas=document.getElementById('pb-strip-canvas');
+  const pbCountdownEl=document.getElementById('pb-countdown');
+  const pbShotsPreview=document.getElementById('pb-shots-preview');
+  const pbPickerGrid=document.getElementById('pb-picker-grid');
+  const pbPickHint=document.getElementById('pb-pick-hint');
+  const pbStripPreview=document.getElementById('pb-strip-preview');
+  const pbStripPhotos=document.getElementById('pb-strip-photos');
+  const pbStripCaption=document.getElementById('pb-strip-caption');
+  const pbReorderStrip=document.getElementById('pb-reorder-strip');
+  let pbStream=null;
+  let pbAllShots=[];
+  let pbSelectedShots=[];
+  let pbShotTarget=4;
+  let pbPickMode=false;
+  let pbCropState = {}; // { [index]: {scale, offX, offY} }
+
+  const COLOR_PRESETS = [
+    {name:'White', hex:'#ffffff'}, {name:'Black', hex:'#111111'}, {name:'Pink', hex:'#ff8fb1'},
+    {name:'Green', hex:'#3ecf8e'}, {name:'Blue', hex:'#5b6cff'}, {name:'Yellow', hex:'#f7d154'},
+    {name:'Purple', hex:'#9b6bd4'}, {name:'Maroon', hex:'#7a1f2b'}, {name:'Burgundy', hex:'#5e1029'}
+  ];
+  const swatchRow = document.getElementById('pb-swatch-row');
+  COLOR_PRESETS.forEach(c=>{
+    const sw = document.createElement('div');
+    sw.className='pb-swatch'; sw.style.background=c.hex; sw.title=c.name;
+    sw.addEventListener('click', ()=>{
+      document.querySelectorAll('.pb-swatch').forEach(s=>s.classList.remove('active'));
+      sw.classList.add('active');
+      document.getElementById('pb-frame-color').value=c.hex;
+      renderStripPreview();
+    });
+    swatchRow.appendChild(sw);
+  });
+
+  async function initPhotoboothCamera(){
+    try{
+      pbStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}, audio:false});
+      pbVideo.srcObject = pbStream;
+    }catch(err){ console.warn('Camera not available yet:', err.message); }
+  }
+
+  function stopPhotoboothCamera(){
+    if(pbStream){ pbStream.getTracks().forEach(t=>t.stop()); pbStream=null; }
+  }
+
+  const FILTERS = {
+    none: c=>{}, bw: c=>{ c.filter='grayscale(1)'; }, sepia: c=>{ c.filter='sepia(0.8)'; },
+    vintage: c=>{ c.filter='sepia(0.4) contrast(1.1) brightness(0.95)'; },
+    bright: c=>{ c.filter='brightness(1.15) saturate(1.1)'; }
+  };
+
+  function captureFrame(){
+    pbCanvas.width = pbVideo.videoWidth; pbCanvas.height = pbVideo.videoHeight;
+    const pctx = pbCanvas.getContext('2d');
+    pctx.translate(pbCanvas.width,0); pctx.scale(-1,1);
+    pctx.drawImage(pbVideo, 0, 0);
+    return pbCanvas.toDataURL('image/png');
+  }
+  const FILTER_CSS = {
+    none:'none', bw:'grayscale(1)', sepia:'sepia(0.8)',
+    vintage:'sepia(0.4) contrast(1.1) brightness(0.95)', bright:'brightness(1.15) saturate(1.1)'
+  };
+
+  function flash(){
+    const f=document.getElementById('pb-flash');
+    f.style.transition='none'; f.style.opacity='0.9';
+    setTimeout(()=>{ f.style.transition='opacity .4s'; f.style.opacity='0'; },50);
+  }
+
+  function countdown(n, cb){
+    if(n<=0){ pbCountdownEl.style.display='none'; cb(); return; }
+    pbCountdownEl.style.display='flex'; pbCountdownEl.textContent=n;
+    setTimeout(()=>countdown(n-1, cb), 700);
+  }
+
+  document.getElementById('pb-start').addEventListener('click', ()=>{
+    pbShotTarget = parseInt(document.getElementById('pb-shot-count').value);
+    pbPickMode = pbShotTarget > 4;
+    pbAllShots = []; pbSelectedShots = [];
+    pbPickerGrid.innerHTML=''; pbPickHint.style.display='none';
+    renderShotsPreview(); renderStripPreview(); renderReorderStrip();
+    takeNextShot();
+  });
+
+  function takeNextShot(){
+    if(pbAllShots.length>=pbShotTarget){
+      if(pbPickMode){ enterPickMode(); }
+      else { pbSelectedShots = pbAllShots.slice(); renderStripPreview(); renderReorderStrip(); }
+      return;
+    }
+    countdown(3, ()=>{
+      flash();
+      pbAllShots.push(captureFrame());
+      renderShotsPreview();
+      if(pbAllShots.length<pbShotTarget) setTimeout(takeNextShot, 400);
+      else takeNextShot();
+    });
+  }
+
+  document.getElementById('pb-retake').addEventListener('click', ()=>{
+    pbAllShots=[]; pbSelectedShots=[]; pbPickMode=false;
+    pbPickerGrid.innerHTML=''; pbPickHint.style.display='none';
+    renderShotsPreview(); renderStripPreview(); renderReorderStrip();
+  });
+
+  function currentFilterCSS(){
+    return FILTER_CSS[document.getElementById('pb-filter-select').value] || 'none';
+  }
+  function renderShotsPreview(){
+    pbShotsPreview.innerHTML='';
+    pbAllShots.forEach(src=>{
+      const img=document.createElement('img'); img.className='pb-shot-thumb'; img.src=src;
+      img.style.filter = currentFilterCSS();
+      pbShotsPreview.appendChild(img);
+    });
+  }
+
+  function enterPickMode(){
+    pbPickHint.style.display='block';
+    pbPickerGrid.innerHTML='';
+    pbSelectedShots = [];
+    pbAllShots.forEach((src)=>{
+      const thumb = document.createElement('div');
+      thumb.className='pb-pick-thumb';
+      const img=document.createElement('img'); img.src=src; thumb.appendChild(img);
+      const orderBadge = document.createElement('div'); orderBadge.className='pick-order'; orderBadge.style.display='none';
+      thumb.appendChild(orderBadge);
+      thumb.addEventListener('click', ()=>{
+        const already = pbSelectedShots.indexOf(src);
+        if(already!==-1){
+          pbSelectedShots.splice(already,1);
+        } else {
+          if(pbSelectedShots.length>=4){ alert('Pick at most 4 photos for the strip.'); return; }
+          pbSelectedShots.push(src);
+        }
+        renderStripPreview(); renderReorderStrip(); relabelPicks();
+      });
+      pbPickerGrid.appendChild(thumb);
+    });
+  }
+  function relabelPicks(){
+    const thumbs = pbPickerGrid.querySelectorAll('.pb-pick-thumb');
+    thumbs.forEach(t=>{
+      const img = t.querySelector('img');
+      const idx = pbSelectedShots.indexOf(img.src);
+      const badge = t.querySelector('.pick-order');
+      if(idx!==-1){ badge.style.display='flex'; badge.textContent=idx+1; t.classList.add('picked'); }
+      else { badge.style.display='none'; t.classList.remove('picked'); }
+    });
+  }
+
+  function applyFrameClass(){
+    const frame = document.getElementById('pb-frame-select').value;
+    pbStripPreview.className = 'frame-'+frame;
+    const solidFrames = ['classic','polaroid','hearts','scallop'];
+    pbStripPreview.style.background = solidFrames.includes(frame) ? document.getElementById('pb-frame-color').value : '';
+  }
+  function renderStripPreview(){
+    applyFrameClass();
+    const layout = document.getElementById('pb-layout-select').value;
+    pbStripPhotos.className = 'layout-'+layout;
+    pbStripPhotos.innerHTML='';
+  function makeCroppable(img, idx){
+    if(!pbCropState[idx]) pbCropState[idx] = {scale:1.15, offX:0, offY:0};
+    const crop = pbCropState[idx];
+    img.style.objectFit='cover';
+    img.style.transform = `scale(${crop.scale}) translate(${crop.offX}px, ${crop.offY}px)`;
+    img.addEventListener('mousedown', e=>{
+      e.preventDefault();
+      const startX=e.clientX, startY=e.clientY;
+      const origOffX=crop.offX, origOffY=crop.offY;
+      function onMove(ev){
+        crop.offX = origOffX + (ev.clientX-startX)/crop.scale;
+        crop.offY = origOffY + (ev.clientY-startY)/crop.scale;
+        img.style.transform = `scale(${crop.scale}) translate(${crop.offX}px, ${crop.offY}px)`;
+      }
+      function onUp(){ document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    img.addEventListener('wheel', e=>{
+      e.preventDefault();
+      crop.scale = Math.max(1, Math.min(3, crop.scale + (e.deltaY>0?-0.05:0.05)));
+      img.style.transform = `scale(${crop.scale}) translate(${crop.offX}px, ${crop.offY}px)`;
+    });
+  }
+    pbStripCaption.textContent = document.getElementById('pb-caption-input').value || '';
+    pbStripCaption.style.fontFamily = document.getElementById('pb-font-select').value;
+  }
+  document.getElementById('pb-frame-select').addEventListener('change', renderStripPreview);
+  document.getElementById('pb-frame-color').addEventListener('input', renderStripPreview);
+  document.getElementById('pb-caption-input').addEventListener('input', renderStripPreview);
+  document.getElementById('pb-font-select').addEventListener('change', renderStripPreview);
+  document.getElementById('pb-layout-select').addEventListener('change', renderStripPreview);
+
+  function renderReorderStrip(){
+    pbReorderStrip.innerHTML='';
+    pbSelectedShots.forEach((src, idx)=>{
+      const img=document.createElement('img');
+      img.className='pb-reorder-thumb'; img.src=src; img.draggable=true;
+      img.dataset.idx=idx;
+      img.addEventListener('dragstart', e=>{ img.classList.add('dragging'); e.dataTransfer.setData('text/plain', idx); });
+      img.addEventListener('dragend', ()=>img.classList.remove('dragging'));
+      img.addEventListener('dragover', e=>e.preventDefault());
+      img.addEventListener('drop', e=>{
+        e.preventDefault();
+        const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+        const toIdx = parseInt(img.dataset.idx);
+        if(fromIdx===toIdx) return;
+        const moved = pbSelectedShots.splice(fromIdx,1)[0];
+        pbSelectedShots.splice(toIdx,0,moved);
+        renderStripPreview(); renderReorderStrip();
+      });
+      pbReorderStrip.appendChild(img);
+    });
+  }
+
+  function drawFrameDecoration(sctx, frame, w, h){
+    if(frame==='hearts'){ sctx.strokeStyle='#d46bb0'; sctx.lineWidth=6; sctx.setLineDash([10,8]); sctx.strokeRect(4,4,w-8,h-8); sctx.setLineDash([]); }
+    if(frame==='neon'){ sctx.shadowColor='#5b6cff'; sctx.shadowBlur=25; sctx.strokeStyle='#5b6cff'; sctx.lineWidth=4; sctx.strokeRect(4,4,w-8,h-8); sctx.shadowBlur=0; }
+    if(frame==='scallop'){ sctx.strokeStyle='#eee'; sctx.lineWidth=8; sctx.strokeRect(4,4,w-8,h-8); }
+    if(frame==='stripes'){
+      sctx.save(); sctx.beginPath(); sctx.rect(0,0,w,h); sctx.clip();
+      sctx.fillStyle='#ffe3ec';
+      for(let i=-h;i<w+h;i+=20){ sctx.save(); sctx.translate(i,0); sctx.rotate(Math.PI/4); sctx.fillRect(0,0,10,h*2); sctx.restore(); }
+      sctx.restore();
+    }
+    if(frame==='gold'){ const grad=sctx.createLinearGradient(0,0,w,h); grad.addColorStop(0,'#f7e7ce'); grad.addColorStop(1,'#d4af37'); sctx.fillStyle=grad; sctx.fillRect(0,0,w,h); }
+    if(frame==='grid'){
+      sctx.strokeStyle='#eee'; sctx.lineWidth=1;
+      for(let x=0;x<w;x+=12){ sctx.beginPath(); sctx.moveTo(x,0); sctx.lineTo(x,h); sctx.stroke(); }
+      for(let y=0;y<h;y+=12){ sctx.beginPath(); sctx.moveTo(0,y); sctx.lineTo(w,y); sctx.stroke(); }
+    }
+  }
+
+  function computeLayoutRects(layout, count, pad, gap){
+    const cellW = 220, cellH = 165;
+    if(layout==='horizontal'){
+      const rects=[];
+      for(let i=0;i<count;i++) rects.push({x:pad+i*(cellW+gap), y:pad, w:cellW, h:cellH});
+      const w = pad*2 + count*cellW + (count-1)*gap;
+      const h = cellH + pad*2;
+      return {canvasW:w, canvasH:h, rects};
+    }
+    if(layout==='grid2x2'){
+      const half = cellW;
+      const rects=[];
+      const positions = [[0,0],[1,0],[0,1],[1,1]];
+      for(let i=0;i<Math.min(count,4);i++){
+        const pos=positions[i];
+        rects.push({x:pad+pos[0]*(half+gap), y:pad+pos[1]*(cellH+gap), w:half, h:cellH});
+      }
+      const w = pad*2 + 2*half + gap;
+      const h = pad*2 + 2*cellH + gap;
+      return {canvasW:w, canvasH:h, rects};
+    }
+    if(layout==='big3'){
+      const bigW = cellW*1.3, bigH = cellH*1.6+gap;
+      const smallW = cellW*0.65, smallH = cellH*0.75;
+      const rects=[{x:pad, y:pad, w:bigW, h:bigH}];
+      for(let i=0;i<2 && i<count-1;i++){
+        rects.push({x:pad+bigW+gap, y:pad+i*(smallH+gap), w:smallW, h:smallH});
+      }
+      const w = pad*2 + bigW + gap + smallW;
+      const h = pad*2 + bigH;
+      return {canvasW:w, canvasH:h, rects};
+    }
+    if(layout==='big4'){
+      const bigW = cellW*1.3, bigH = cellH*1.6+gap*1.5;
+      const smallW = cellW*0.62, smallH = (bigH-gap)/2;
+      const rects=[{x:pad, y:pad, w:bigW, h:bigH}];
+      for(let i=0;i<3 && i<count-1;i++){
+        const col = i<2?0:1;
+        const row = i%2;
+        rects.push({x:pad+bigW+gap+col*(smallW+gap), y:pad+row*(smallH+gap), w:smallW, h:smallH});
+      }
+      const w = pad*2 + bigW + gap + smallW*2 + gap;
+      const h = pad*2 + bigH;
+      return {canvasW:w, canvasH:h, rects};
+    }
+    const rects=[];
+    for(let i=0;i<count;i++) rects.push({x:pad, y:pad+i*(cellH+gap), w:cellW, h:cellH});
+    const w = cellW + pad*2;
+    const h = pad*2 + count*cellH + (count-1)*gap;
+    return {canvasW:w, canvasH:h, rects};
+  }
+
+  function compositeStrip(callback){
+    if(!pbSelectedShots.length){ alert('Take or select at least one photo first.'); return; }
+    const layout = document.getElementById('pb-layout-select').value;
+    const pad=28, gap=10, capH=44;
+    const geo = computeLayoutRects(layout, pbSelectedShots.length, pad, gap);
+    const w = geo.canvasW, h = geo.canvasH + capH;
+    pbStripCanvas.width=w; pbStripCanvas.height=h;
+    const sctx = pbStripCanvas.getContext('2d');
+    const frame = document.getElementById('pb-frame-select').value;
+    const frameColor = document.getElementById('pb-frame-color').value;
+    const fontFamily = document.getElementById('pb-font-select').value;
+
+    if(frame==='film') sctx.fillStyle='#111';
+    else if(frame==='neon') sctx.fillStyle='#0a0a16';
+    else if(frame==='gold'||frame==='grid'||frame==='stripes') sctx.fillStyle='#fff';
+    else sctx.fillStyle=frameColor;
+    sctx.fillRect(0,0,w,h);
+    drawFrameDecoration(sctx, frame, w, h);
+
+    let loaded=0;
+    const total = pbSelectedShots.length;
+    pbSelectedShots.forEach((src,i)=>{
+      const im=new Image();
+      im.onload=()=>{
+        const r = geo.rects[i] || geo.rects[geo.rects.length-1];
+        sctx.save();
+        sctx.beginPath(); sctx.rect(r.x, r.y, r.w, r.h); sctx.clip();
+        sctx.filter = currentFilterCSS();
+        const crop = pbCropState[i] || {scale:1, offX:0, offY:0};
+        const imgAspect = im.width/im.height, boxAspect = r.w/r.h;
+        let dw, dh, dx, dy;
+        if(imgAspect>boxAspect){ dh=r.h; dw=dh*imgAspect; dx=r.x-(dw-r.w)/2; dy=r.y; }
+        else { dw=r.w; dh=dw/imgAspect; dx=r.x; dy=r.y-(dh-r.h)/2; }
+        dw*=crop.scale; dh*=crop.scale;
+        dx += crop.offX; dy += crop.offY;
+        sctx.drawImage(im, dx, dy, dw, dh);
+        sctx.filter='none';
+        sctx.restore();
+        loaded++;
+        if(loaded===total){
+          sctx.fillStyle = (frame==='film'||frame==='neon') ? '#eee' : '#555';
+          sctx.font='20px '+fontFamily;
+          sctx.textAlign='center';
+          sctx.fillText(document.getElementById('pb-caption-input').value||'', w/2, h-16);
+          callback(pbStripCanvas);
+        }
+      };
+      im.src=src;
+    });
+  }
+
+  document.getElementById('pb-download-strip').addEventListener('click', ()=>{
+    compositeStrip(canvas=>{
+      const a=document.createElement('a'); a.href=canvas.toDataURL('image/png');
+      a.download='photobooth-strip.png'; a.click();
+    });
+  });
+  document.getElementById('pb-add-to-board').addEventListener('click', ()=>{
+    compositeStrip(canvas=>{
+      const c = screenToCanvas(innerWidth/2, innerHeight/2);
+      const dataUrl = canvas.toDataURL('image/png');
+      addImage(dataUrl, c.x, c.y, canvas.width, canvas.height);
+      alert('Strip added to your Board!');
+    });
+  });
+
+  renderStripPreview();
+
+  /* ============================================================
+     DOC PAGE
+  ============================================================ */
+  const docEditable=document.getElementById('doc-editable');
+  document.querySelectorAll('#doc-toolbar button[data-cmd]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ document.execCommand(btn.dataset.cmd,false,null); docEditable.focus(); });
+  });
+  document.querySelectorAll('#doc-toolbar button[data-block]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const tag = btn.dataset.block==='p' ? 'P' : btn.dataset.block.toUpperCase();
+      document.execCommand('formatBlock', false, tag); docEditable.focus();
+    });
+  });
+  document.getElementById('doc-download').addEventListener('click', ()=>{
+    const text = docEditable.innerText;
+    const blob = new Blob([text], {type:'text/plain'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='document.txt'; a.click();
+  });
+  document.getElementById('doc-download-pdf').addEventListener('click', ()=>{
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({unit:'pt', format:'a4'});
+    const margin=48;
+    const lines = pdf.splitTextToSize(docEditable.innerText, 595-margin*2);
+    pdf.setFontSize(12);
+    pdf.text(lines, margin, margin+12);
+    pdf.save('document.pdf');
+  });
+    document.getElementById('doc-download-docx').addEventListener('click', ()=>{
+    const { Document, Packer, Paragraph, TextRun } = window.docx;
+    const paragraphs = docEditable.innerText.split('\n').filter(l=>l.trim()!=='').map(line=>
+      new Paragraph({ children:[new TextRun(line)] })
+    );
+    const doc = new Document({ sections:[{ properties:{}, children: paragraphs }] });
+    Packer.toBlob(doc).then(blob=>{
+      saveAs(blob, 'document.docx');
+    });
+  });
+  docEditable.addEventListener('input', ()=>localStorage.setItem('wb_doc_content', docEditable.innerHTML));
+  const savedDoc = localStorage.getItem('wb_doc_content');
+  if(savedDoc) docEditable.innerHTML = savedDoc;
+
+  /* ============================================================
+     SLIDES
+  ============================================================ */
+  let slides = JSON.parse(localStorage.getItem('wb_slides')||'null') || [{elements:[]}];
+  let currentSlideIdx = 0;
+  const slideStage = document.getElementById('slide-stage');
+  const slideThumbs = document.getElementById('slide-thumbs');
+  function saveSlides(){ localStorage.setItem('wb_slides', JSON.stringify(slides)); }
+  function renderSlideStage(){
+    slideStage.innerHTML='';
+    const slide = slides[currentSlideIdx];
+    slide.elements.forEach((elData)=>{
+      const el = document.createElement('div');
+      el.className='slide-el';
+      el.style.left=elData.x+'px'; el.style.top=elData.y+'px';
+      el.style.width=elData.w+'px'; el.style.height=elData.h+'px';
+      if(elData.type==='text'){
+        el.contentEditable=true; el.style.fontSize=(elData.fontSize||24)+'px';
+        el.innerText = elData.text||'Click to edit';
+        el.addEventListener('input', ()=>{ elData.text=el.innerText; saveSlides(); });
+      } else if(elData.type==='image'){
+        const img=document.createElement('img'); img.src=elData.src; el.appendChild(img);
+      }
+      makeSlideElDraggable(el, elData);
+      slideStage.appendChild(el);
+    });
+    renderThumbs();
+  }
+  function makeSlideElDraggable(el, elData){
+    el.addEventListener('mousedown', e=>{
+      if(el.isContentEditable && e.detail>0 && document.activeElement===el) return;
+      e.stopPropagation();
+      const startX=e.clientX, startY=e.clientY, origX=elData.x, origY=elData.y;
+      function onMove(ev){ elData.x=origX+(ev.clientX-startX); elData.y=origY+(ev.clientY-startY);
+        el.style.left=elData.x+'px'; el.style.top=elData.y+'px'; }
+      function onUp(){ document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); saveSlides(); }
+      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+    });
+  }
+  function renderThumbs(){
+    slideThumbs.innerHTML='';
+    slides.forEach((s,idx)=>{
+      const t=document.createElement('div');
+      t.className='slide-thumb'+(idx===currentSlideIdx?' active':'');
+      t.textContent = 'Slide '+(idx+1);
+      t.addEventListener('click', ()=>{ currentSlideIdx=idx; renderSlideStage(); });
+      slideThumbs.appendChild(t);
+    });
+  }
+  document.getElementById('slide-add-text').addEventListener('click', ()=>{
+    slides[currentSlideIdx].elements.push({type:'text', x:60,y:60,w:400,h:80,text:'New text', fontSize:28});
+    saveSlides(); renderSlideStage();
+  });
+  document.getElementById('slide-add-image').addEventListener('click', ()=>document.getElementById('slideImageInput').click());
+  document.getElementById('slideImageInput').addEventListener('change', e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      slides[currentSlideIdx].elements.push({type:'image', x:100,y:100,w:300,h:220,src:ev.target.result});
+      saveSlides(); renderSlideStage();
+    };
+    reader.readAsDataURL(file); e.target.value='';
+  });
+  document.getElementById('slide-new').addEventListener('click', ()=>{
+    slides.push({elements:[]}); currentSlideIdx=slides.length-1; saveSlides(); renderSlideStage();
+  });
+  document.getElementById('slide-del').addEventListener('click', ()=>{
+    if(slides.length===1){ alert('At least one slide is required.'); return; }
+    slides.splice(currentSlideIdx,1); currentSlideIdx=Math.max(0,currentSlideIdx-1);
+    saveSlides(); renderSlideStage();
+  });
+  document.getElementById('slide-export-pdf').addEventListener('click', ()=>{
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({orientation:'landscape', unit:'px', format:[900,506]});
+    function renderSlideToCanvasAndAdd(i){
+      const slide = slides[i];
+      const cnv = document.createElement('canvas'); cnv.width=900; cnv.height=506;
+      const c = cnv.getContext('2d');
+      c.fillStyle='#fff'; c.fillRect(0,0,900,506);
+      const imgs = slide.elements.filter(e=>e.type==='image');
+      let pending = imgs.length;
+      function finish(){
+        if(i>0) pdf.addPage([900,506],'landscape');
+        pdf.addImage(cnv.toDataURL('image/png'),'PNG',0,0,900,506);
+        if(i+1<slides.length) renderSlideToCanvasAndAdd(i+1);
+        else pdf.save('slides.pdf');
+      }
+      slide.elements.filter(e=>e.type==='text').forEach(e=>{
+        c.fillStyle='#000'; c.font=(e.fontSize||28)+'px sans-serif'; c.fillText(e.text||'', e.x, e.y+(e.fontSize||28));
+      });
+      if(pending===0){ finish(); return; }
+      imgs.forEach(e=>{
+        const im=new Image();
+        im.onload=()=>{ c.drawImage(im, e.x, e.y, e.w, e.h); pending--; if(pending===0) finish(); };
+        im.src=e.src;
+      });
+    }
+    renderSlideToCanvasAndAdd(0);
+  });
+  document.getElementById('slide-export-pptx').addEventListener('click', ()=>{
+    const pptx = new PptxGenJS();
+    pptx.defineLayout({name:'SLIDES', width:10, height:5.63});
+    pptx.layout='SLIDES';
+    slides.forEach(slideData=>{
+      const slide = pptx.addSlide();
+      slideData.elements.forEach(el=>{
+        const xIn = el.x/900*10, yIn = el.y/506*5.63, wIn = el.w/900*10, hIn = el.h/506*5.63;
+        if(el.type==='text'){
+          slide.addText(el.text||'', {x:xIn, y:yIn, w:wIn, h:hIn, fontSize:(el.fontSize||28)/2, color:'000000'});
+        } else if(el.type==='image'){
+          slide.addImage({data: el.src, x:xIn, y:yIn, w:wIn, h:hIn});
+        }
+      });
+    });
+    pptx.writeFile({fileName:'slides.pptx'});
+  });
+
+  renderSlideStage();
+
+  const presentOverlay=document.getElementById('present-overlay');
+  const presentStage=document.getElementById('present-stage');
+  const presentCount=document.getElementById('present-count');
+  let presentIdx=0;
+  document.getElementById('present-btn').addEventListener('click', ()=>{ presentIdx=currentSlideIdx; presentOverlay.classList.add('active'); renderPresentStage(); });
+  document.getElementById('present-close').addEventListener('click', ()=>presentOverlay.classList.remove('active'));
+  document.getElementById('present-prev').addEventListener('click', ()=>{ presentIdx=Math.max(0,presentIdx-1); renderPresentStage(); });
+  document.getElementById('present-next').addEventListener('click', ()=>{ presentIdx=Math.min(slides.length-1,presentIdx+1); renderPresentStage(); });
+  window.addEventListener('keydown', e=>{
+    if(!presentOverlay.classList.contains('active')) return;
+    if(e.key==='ArrowRight') { presentIdx=Math.min(slides.length-1,presentIdx+1); renderPresentStage(); }
+    if(e.key==='ArrowLeft') { presentIdx=Math.max(0,presentIdx-1); renderPresentStage(); }
+    if(e.key==='Escape') presentOverlay.classList.remove('active');
+  });
+  function renderPresentStage(){
+    presentStage.innerHTML='';
+    const slide=slides[presentIdx];
+    const scaleFactor = presentStage.getBoundingClientRect().width / 900;
+    slide.elements.forEach(elData=>{
+      const el=document.createElement('div');
+      el.style.position='absolute';
+      el.style.left=(elData.x*scaleFactor)+'px'; el.style.top=(elData.y*scaleFactor)+'px';
+      el.style.width=(elData.w*scaleFactor)+'px'; el.style.height=(elData.h*scaleFactor)+'px';
+      if(elData.type==='text'){ el.innerText=elData.text; el.style.fontSize=((elData.fontSize||28)*scaleFactor)+'px'; }
+      else if(elData.type==='image'){ const img=document.createElement('img'); img.src=elData.src; img.style.width='100%'; img.style.height='100%'; img.style.objectFit='contain'; el.appendChild(img); }
+      presentStage.appendChild(el);
+    });
+    presentCount.textContent = (presentIdx+1)+' / '+slides.length;
+  }
+
+})();
+</script>
+</body>
+</html>

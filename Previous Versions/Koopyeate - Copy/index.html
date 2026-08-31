@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Koopyeate Whiteboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="styles.css">
+<link rel="script" href="app.js">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</head>
+<body>
+
+<div id="app-tabs">
+  <span id="app-title">🗂️ Koopyeate</span>
+  <button class="app-tab active" data-view="board-view">Board</button>
+  <button class="app-tab" data-view="doc-view">Doc</button>
+  <button class="app-tab" data-view="slides-view">Slides</button>
+  <button class="app-tab" data-view="photobooth-view">Photobooth</button>
+  <button id="layers-btn" title="Layers panel">📚</button>
+  <button id="history-btn" title="History & trash">🕓</button>
+  <button id="settings-btn" title="Keybind settings">⌨️</button>
+</div>
+
+<div id="layers-panel">
+  <h3>Layers</h3>
+  <div id="layers-list"></div>
+</div>
+
+<div id="history-panel">
+  <div id="history-tabs">
+    <button class="active" data-htab="versions">Versions</button>
+    <button data-htab="trash">Trash</button>
+  </div>
+  <div id="history-list"></div>
+  <div id="trash-list" style="display:none;"></div>
+</div>
+
+<div class="app-view active" id="board-view">
+  <div id="toolbar">
+    <button class="tool-btn active" id="tool-select" data-action="select" title="Select / Move (drag empty space to pan, Shift+drag to box-select)">🖱️</button>
+
+    <div class="tool-group">
+      <button class="group-toggle" id="grp-draw-toggle" title="Drawing tools">✏️<span class="caret">▾</span></button>
+      <div class="group-flyout" id="grp-draw-flyout">
+        <button class="tool-btn" id="tool-pen" data-action="pen" title="Pen">✏️</button>
+        <button class="tool-btn" id="tool-eraser" data-action="eraser" title="Eraser">🧽</button>
+        <input type="color" id="penColor" value="#222222" title="Pen color">
+        <input type="range" id="penSize" min="1" max="30" value="3" title="Pen size">
+      </div>
+    </div>
+
+    <div class="tool-group">
+      <button class="group-toggle" id="grp-content-toggle" title="Add content">🗒️<span class="caret">▾</span></button>
+      <div class="group-flyout" id="grp-content-flyout">
+        <button class="tool-btn" id="tool-sticky" data-action="sticky" title="Sticky Note">🗒️</button>
+        <button class="tool-btn" id="tool-image" data-action="image" title="Add Image">🖼️</button>
+        <button class="tool-btn" id="tool-camera" data-action="camera" title="Open Photobooth tab">📷</button>
+        <button class="tool-btn" id="tool-table" data-action="table" title="Add Table (choose size)">🔢</button>
+      </div>
+    </div>
+
+    <div class="tool-group">
+      <button class="group-toggle" id="grp-flow-toggle" title="Flowchart & mind map">▭<span class="caret">▾</span></button>
+      <div class="group-flyout" id="grp-flow-flyout">
+        <button class="tool-btn" id="tool-rect" data-action="rect" title="Rectangle">▭</button>
+        <button class="tool-btn" id="tool-diamond" data-action="diamond" title="Diamond">◆</button>
+        <button class="tool-btn" id="tool-circle" data-action="circle" title="Circle">⬤</button>
+        <button class="tool-btn" id="tool-connector" data-action="connector" title="Connector arrow">↗️</button>
+        <button class="tool-btn" id="tool-mindmap" data-action="mindmap" title="Mind Map node">🧠</button>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+    <select class="board-size-select" id="board-size-select" title="Sheet size to place">
+      <option value="presentation">Presentation 16:9</option>
+      <option value="a4-portrait">A4 Portrait</option>
+      <option value="a4-landscape">A4 Landscape</option>
+      <option value="square">Square 1:1</option>
+      <option value="custom">Custom size…</option>
+    </select>
+    <button id="btn-place-sheet" title="Place a movable sheet of this size on the canvas">➕ Place sheet</button>
+    <div class="sep"></div>
+
+    <div class="tool-group">
+      <button class="group-toggle" id="grp-actions-toggle" title="Undo / clear / duplicate">↩️<span class="caret">▾</span></button>
+      <div class="group-flyout" id="grp-actions-flyout">
+        <button class="tool-btn" id="btn-undo" data-action="undo" title="Undo">↩️</button>
+        <button class="tool-btn" id="btn-duplicate" data-action="duplicate" title="Duplicate selected (Ctrl+D)">📋</button>
+        <button class="tool-btn" id="btn-clear" data-action="clear" title="Clear board">🗑️</button>
+      </div>
+    </div>
+
+    <div class="tool-group">
+      <button class="group-toggle" id="grp-file-toggle" title="Save / load / export">💾<span class="caret">▾</span></button>
+      <div class="group-flyout" id="grp-file-flyout">
+        <button class="tool-btn label-btn" id="btn-save" data-action="save" title="Export board (.json)"><b>JSON</b></button>
+        <button class="tool-btn label-btn" id="btn-load" data-action="load" title="Import board (.json)"><b>Import</b></button>
+        <button class="tool-btn label-btn" id="btn-png" data-action="png" title="Export as PNG"><b>PNG</b></button>
+        <button class="tool-btn label-btn" id="btn-pdf" data-action="pdf" title="Export as PDF"><b>PDF</b></button>
+        <button class="tool-btn label-btn" id="btn-pptx" data-action="pptx" title="Export as PowerPoint"><b>PPTX</b></button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept=".json">
+  <input type="file" id="imageInput" accept="image/*">
+
+  <div id="board-wrap">
+    <div id="canvas-layer">
+      <canvas id="draw-canvas" width="6000" height="4000"></canvas>
+    </div>
+    <div id="selection-box"></div>
+  </div>
+
+  <div id="hint">Paste image (Ctrl/Cmd+V) • Drag empty space to pan • Shift+drag to box-select • Alt+drag or Ctrl+D to duplicate</div>
+  <div id="zoomLabel">100%</div>
+
+  <div id="timer-widget">
+    <span id="timer-display">05:00</span>
+    <select id="timer-preset">
+      <option value="300">5 min</option>
+      <option value="600">10 min</option>
+      <option value="900">15 min</option>
+      <option value="1500">25 min</option>
+      <option value="custom">Custom</option>
+    </select>
+    <input type="number" id="timer-custom" placeholder="min" style="display:none;">
+    <button id="timer-start">▶️</button>
+    <button id="timer-pause">⏸️</button>
+    <button id="timer-reset">🔁</button>
+    <button id="timer-mode">⏱️ Stopwatch</button>
+  </div>
+</div>
+
+<div class="app-view" id="doc-view">
+  <div id="doc-toolbar">
+    <button data-cmd="bold"><b>B</b></button>
+    <button data-cmd="italic"><i>I</i></button>
+    <button data-cmd="underline"><u>U</u></button>
+    <button data-block="h1">H1</button>
+    <button data-block="h2">H2</button>
+    <button data-block="p">¶</button>
+    <button data-cmd="insertUnorderedList">• List</button>
+    <button data-cmd="insertOrderedList">1. List</button>
+    <button id="doc-download"><b>TXT</b></button>
+    <button id="doc-download-pdf"><b>PDF</b></button>
+    <button id="doc-download-docx"><b>DOCX</b></button>
+  </div>
+  <div id="doc-paper">
+    <div id="doc-editable" contenteditable="true">
+      <h1>Untitled document</h1>
+      <p>Start typing here…</p>
+    </div>
+  </div>
+</div>
+
+<div class="app-view" id="slides-view">
+  <div id="slides-editor-bar">
+    <button id="slide-add-text" title="Add text box">🔤 Text</button>
+    <button id="slide-add-image" title="Add image">🖼️ Image</button>
+    <button id="slide-new" title="New slide">➕ Slide</button>
+    <button id="slide-del" title="Delete this slide">🗑️ Delete</button>
+    <button id="slide-export-pdf" title="Export all slides as PDF"><b>PDF</b></button>
+    <button id="slide-export-pptx" title="Export all slides as PowerPoint"><b>PPTX</b></button>
+  </div>
+  <button id="present-btn">▶️ Present</button>
+  <div id="slide-canvas-wrap">
+    <div id="slide-stage"></div>
+  </div>
+  <div id="slide-thumbs"></div>
+  <input type="file" id="slideImageInput" accept="image/*" style="display:none;">
+</div>
+
+<div id="present-overlay">
+  <button id="present-close">✕ Close</button>
+  <div id="present-stage"></div>
+  <div id="present-nav">
+    <button id="present-prev">◀</button>
+    <span id="present-count">1 / 1</span>
+    <button id="present-next">▶</button>
+  </div>
+</div>
+
+<div class="app-view" id="photobooth-view">
+  <div id="pb-layout">
+    <div id="pb-camera-col">
+      <div style="position:relative;">
+        <video id="pb-video" autoplay playsinline></video>
+        <div id="pb-countdown">3</div>
+      </div>
+      <div id="pb-shots-preview"></div>
+      <div id="pb-controls">
+        <select id="pb-shot-count">
+          <option value="1">1 shot</option>
+          <option value="3">3-shot strip</option>
+          <option value="4" selected>4-shot strip</option>
+          <option value="6">6 shots (pick 4)</option>
+          <option value="8">8 shots (pick 4)</option>
+        </select>
+        <button id="pb-start">📸 Start</button>
+        <button id="pb-retake">🔄 Retake all</button>
+      </div>
+      <div id="pb-pick-hint" style="display:none;color:#ffd166;font-size:12px;text-align:center;max-width:400px;">Click photos below to select which ones go in your strip (in click order).</div>
+      <div id="pb-picker-grid"></div>
+    </div>
+    <div id="pb-strip-col">
+      <div id="pb-strip-preview" class="frame-classic">
+        <div id="pb-strip-photos" class="layout-vertical"></div>
+        <div id="pb-strip-caption">koopyeate booth</div>
+      </div>
+      <div id="pb-reorder-hint" style="font-size:11px;color:#999;">Drag thumbnails below to reorder</div>
+      <div id="pb-reorder-strip"></div>
+      <div id="pb-option-row">
+        <label>Layout
+          <select id="pb-layout-select">
+            <option value="vertical">Vertical Strip</option>
+            <option value="horizontal">Horizontal Strip</option>
+            <option value="grid2x2">2×2 Grid</option>
+            <option value="big3">1 Big + 3 Small</option>
+            <option value="big4">1 Big + 4 Small</option>
+          </select>
+        </label>
+        <label>Frame
+          <select id="pb-frame-select">
+            <option value="classic">Classic White</option>
+            <option value="film">Film Strip</option>
+            <option value="polaroid">Polaroid</option>
+            <option value="neon">Neon</option>
+            <option value="hearts">Hearts</option>
+            <option value="scallop">Scalloped</option>
+            <option value="stripes">Candy Stripes</option>
+            <option value="gold">Gold Foil</option>
+            <option value="grid">Grid Lines</option>
+          </select>
+        </label>
+        <label>Filter
+          <select id="pb-filter-select">
+            <option value="none">None</option>
+            <option value="bw">Black & White</option>
+            <option value="sepia">Sepia</option>
+            <option value="vintage">Vintage</option>
+            <option value="bright">Bright</option>
+          </select>
+        </label>
+        <label>Font
+          <select id="pb-font-select">
+            <option value="'Segoe UI', sans-serif">Sans</option>
+            <option value="Georgia, serif">Serif</option>
+            <option value="'Courier New', monospace">Mono</option>
+            <option value="'Brush Script MT', cursive">Script</option>
+            <option value="'Comic Sans MS', cursive">Playful</option>
+            <option value="Impact, sans-serif">Bold Impact</option>
+          </select>
+        </label>
+        <label>Caption
+          <input type="text" id="pb-caption-input" value="koopyeate booth" style="width:120px;padding:5px;border-radius:6px;border:none;">
+        </label>
+      </div>
+      <div class="pb-swatch-row" id="pb-swatch-row"></div>
+      <div id="pb-option-row">
+        <label>Custom color
+          <input type="color" id="pb-frame-color" value="#ffffff">
+        </label>
+      </div>
+      <div id="pb-controls">
+        <button id="pb-add-to-board"><b>Add to Board</b></button>
+        <button id="pb-download-strip"><b>PNG</b></button>
+      </div>
+    </div>
+  </div>
+  <canvas id="pb-canvas"></canvas>
+  <canvas id="pb-strip-canvas"></canvas>
+  <div id="pb-flash"></div>
+</div>
+
+<div id="table-prompt-overlay">
+  <div id="table-prompt">
+    <h3>New table size</h3>
+    <div class="row">
+      <div><label>Rows</label><input type="number" id="table-rows-input" value="3" min="1" max="30"></div>
+      <div><label>Columns</label><input type="number" id="table-cols-input" value="3" min="1" max="20"></div>
+    </div>
+    <button id="table-prompt-create">Create table</button>
+  </div>
+</div>
+
+<div id="settings-overlay">
+  <div id="settings-panel">
+    <h2>Keybind settings</h2>
+    <p>Click a box and press any key to rebind. Changes save automatically.</p>
+    <div id="keybind-list"></div>
+    <button id="settings-close">Done</button>
+    <button id="settings-reset">Reset to defaults</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
